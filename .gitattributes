@@ -1,0 +1,7 @@
+# .bat 은 CRLF 줄바꿈 + CP949(ANSI) 인코딩이어야 윈도우에서 정상 동작합니다.
+# git 이 줄바꿈/인코딩을 건드리지 않도록 바이너리로 취급합니다.
+*.bat -text
+
+*.pyw text eol=lf
+*.py  text eol=lf
+*.md  text eol=lf
