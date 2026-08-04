@@ -18,8 +18,39 @@ ICON = "icon.ico"
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 
+def _fix_console():
+    """한글을 못 찍는 콘솔(예: 영문 윈도우 cp1252, 빌드 서버)에서만 UTF-8 로 바꾼다.
+    한국어 윈도우(cp949)는 그대로 두어야 명령 프롬프트에서 한글이 제대로 보인다."""
+    fixed = False
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            "한글".encode(stream.encoding or "ascii")
+            continue                     # 현재 인코딩으로 충분함
+        except Exception:
+            pass
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+            fixed = True
+        except Exception:
+            pass
+    if fixed:
+        # PyInstaller 등 자식 프로세스도 한글 경로를 출력하므로 함께 바꿔준다.
+        # (이미 설정된 값이 문제의 원인이므로 setdefault 가 아니라 덮어쓴다)
+        os.environ["PYTHONIOENCODING"] = "utf-8"
+        os.environ["PYTHONUTF8"] = "1"
+
+
+_fix_console()
+
+
 def say(msg=""):
-    print(msg, flush=True)
+    try:
+        print(msg, flush=True)
+    except UnicodeEncodeError:
+        # 그래도 못 찍으면 깨지더라도 진행은 계속한다.
+        data = msg.encode(sys.stdout.encoding or "utf-8", "replace")
+        sys.stdout.buffer.write(data + b"\n")
+        sys.stdout.flush()
 
 
 def die(msg):
