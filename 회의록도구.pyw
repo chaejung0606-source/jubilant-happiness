@@ -40,10 +40,18 @@ TIMEOUT_SEC = 1800
 
 # ---- 오류 기록 (.pyw 는 콘솔이 없어서 오류가 보이지 않으므로 파일로 남긴다) ----
 def _app_dir():
+    # .exe 로 묶인 경우 __file__ 은 임시 폴더를 가리키므로 실행 파일 위치를 쓴다.
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(os.path.abspath(sys.executable))
     try:
         return os.path.dirname(os.path.abspath(__file__))
     except Exception:
         return os.path.dirname(os.path.abspath(sys.argv[0]))
+
+
+def _resource_dir():
+    """PyInstaller 로 묶였을 때 아이콘 등 포함 자원이 풀리는 위치."""
+    return getattr(sys, "_MEIPASS", None) or _app_dir()
 
 
 def _log_path():
@@ -708,8 +716,32 @@ class App:
             self.root.after(200, self.poll)
 
 
+def _set_taskbar_identity():
+    """작업 표시줄에서 파이썬이 아니라 이 프로그램의 아이콘이 보이도록 한다."""
+    if os.name != "nt":
+        return
+    try:
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+            "kangwon.dsc.meetingminutes")
+    except Exception:
+        pass
+
+
+def _apply_icon(root):
+    ico = os.path.join(_resource_dir(), "icon.ico")
+    if not os.path.exists(ico):
+        return
+    try:
+        root.iconbitmap(default=ico)
+    except Exception:
+        pass
+
+
 def main():
+    _set_taskbar_identity()
     root = TkinterDnD.Tk() if HAS_DND else tk.Tk()
+    _apply_icon(root)
     # tkinter 콜백에서 난 오류도 기록/표시되도록 연결
     root.report_callback_exception = _excepthook
     style = ttk.Style(root)

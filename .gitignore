@@ -1,0 +1,10 @@
+# 빌드 산출물
+build/
+dist/
+*.spec
+__pycache__/
+*.pyc
+
+# 실행 중 생기는 파일
+오류기록.txt
+회의록도구.exe
