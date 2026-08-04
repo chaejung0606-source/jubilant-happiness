@@ -18,7 +18,7 @@ if defined PYC goto HAVEPY
 goto NOPYTHON
 
 :HAVEPY
-%PYC% "%~dp0¾Û¸¸µé±â.py"
+%PYC% "%~dp0build_app.py"
 echo.
 pause
 exit /b 0
