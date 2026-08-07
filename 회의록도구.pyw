@@ -131,6 +131,18 @@ def _run_kwargs(cwd, timeout):
     return kwargs
 
 
+LOGIN_HELP = (
+    "Claude 에 로그인되어 있지 않습니다.\n\n"
+    "아래 순서로 한 번만 로그인하면 됩니다.\n\n"
+    "  1. 시작 메뉴에서 '명령 프롬프트' 를 엽니다.\n"
+    "  2. claude  를 입력하고 Enter 를 누릅니다.\n"
+    "  3. 안내에 따라 로그인합니다. (브라우저가 열립니다)\n"
+    "  4. 로그인이 끝나면 이 프로그램에서 [작업 시작] 을 다시 누릅니다.\n\n"
+    "이미 로그인했는데도 이 메시지가 보이면, 명령 프롬프트에서\n"
+    "claude auth status  를 실행해 결과를 확인해 주세요."
+)
+
+
 def check_claude():
     """실행 전 점검. (사용 가능하면 (True, 버전문자열))"""
     exe = find_claude()
@@ -145,7 +157,18 @@ def check_claude():
     if r.returncode != 0:
         return (False, "claude 실행에 실패했습니다.\n\n%s\n%s"
                 % (exe, (r.stderr or r.stdout or "").strip()[:300]))
-    return (True, (r.stdout or "").strip())
+    version = (r.stdout or "").strip()
+
+    # 설치되어 있어도 로그인이 안 되어 있으면 회의록을 한 건도 만들 수 없다.
+    try:
+        a = subprocess.run(claude_command(exe, ["auth", "status", "--json"]),
+                           **_run_kwargs(None, 60))
+        info = _extract_json(a.stdout)
+        if isinstance(info, dict) and info.get("loggedIn") is False:
+            return (False, LOGIN_HELP)
+    except Exception:
+        pass        # 예전 버전이라 auth 명령이 없으면 그냥 넘어간다
+    return (True, version)
 
 
 # ---- 회의록 작성 규칙 (여기만 고치면 문체/판단 기준이 바뀝니다) ----
@@ -410,17 +433,35 @@ def _extract_json(text):
     return None
 
 
+# CLI 가 영어로 돌려주는 대표적인 오류를 한국어 안내로 바꾼다.
+_KNOWN_ERRORS = [
+    ("not logged in", "Claude 에 로그인되어 있지 않음 (명령 프롬프트에서 claude 실행 후 로그인)"),
+    ("please run /login", "Claude 에 로그인되어 있지 않음 (명령 프롬프트에서 claude 실행 후 로그인)"),
+    ("credit balance", "Claude 사용 한도/잔액 부족"),
+    ("usage limit", "Claude 사용 한도 초과 (잠시 후 다시 시도)"),
+    ("rate limit", "요청이 너무 잦음 (잠시 후 다시 시도)"),
+    ("network", "네트워크 연결 오류"),
+    ("econnrefused", "네트워크 연결 오류"),
+    ("etimedout", "네트워크 연결 시간 초과"),
+]
+
+
 def _failure_reason(r):
     """실패 사유를 사람이 읽을 수 있는 한 줄로 만든다.
     (--output-format json 의 출력이 그대로 노출되지 않도록 result 만 뽑아낸다.)"""
+    text = ""
     outer = _extract_json(r.stdout)
     if isinstance(outer, dict):
         text = str(outer.get("result") or outer.get("error") or "").strip()
-        if text:
-            return text.replace("\n", " ")[:120]
-    text = (r.stderr or "").strip()
+    if not text:
+        text = (r.stderr or "").strip()
+        text = text.splitlines()[-1] if text else ""
+    low = text.lower()
+    for key, korean in _KNOWN_ERRORS:
+        if key in low:
+            return korean
     if text:
-        return text.splitlines()[-1][:120]
+        return text.replace("\n", " ")[:120]
     return "회의록 데이터가 생성되지 않음"
 
 
