@@ -12,12 +12,14 @@ import glob
 import json
 import queue
 import shutil
+import hashlib
 import zipfile
 import datetime
 import tempfile
 import threading
 import traceback
 import subprocess
+import urllib.request
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
@@ -36,6 +38,23 @@ DEFAULT_ORG = "강원대학교"
 
 # 회의 1건당 최대 대기 시간(초)
 TIMEOUT_SEC = 1800
+
+# 자동 업데이트
+APP_REPO = "chaejung0606-source/jubilant-happiness"
+RELEASE_TAG = "app-latest"
+UPDATE_API = "https://api.github.com/repos/%s/releases/tags/%s" % (APP_REPO, RELEASE_TAG)
+
+# 규칙 파일 (프로그램 옆에 두면 이 내용이 우선 적용된다)
+RULES_FILE = "규칙.txt"
+RULES_BASE_FILE = "규칙.기본값.txt"
+RULES_HEADER = (
+    "# 회의록 작성 규칙\n"
+    "# 이 파일을 고치면 회의록의 문체와 판단 기준이 바뀝니다.\n"
+    "# 저장만 하면 다음 [작업 시작] 부터 바로 반영됩니다. (프로그램을 다시 켜지 않아도 됨)\n"
+    "# '#' 으로 시작하는 줄은 설명이라 무시됩니다.\n"
+    "# 기본값으로 되돌리려면 이 파일을 지우고 프로그램을 다시 켜세요.\n"
+    "\n"
+)
 
 
 # ---- 오류 기록 (.pyw 는 콘솔이 없어서 오류가 보이지 않으므로 파일로 남긴다) ----
@@ -172,7 +191,7 @@ def check_claude():
 
 
 # ---- 회의록 작성 규칙 (여기만 고치면 문체/판단 기준이 바뀝니다) ----
-RULES = """- 회의는 끝난 뒤 작성하는 문서이므로 완료·과거 관점으로 작성.
+RULES_DEFAULT = """- 회의는 끝난 뒤 작성하는 문서이므로 완료·과거 관점으로 작성.
 - 회의안건(agenda): 서류(공문·계획서 등)에 나타난 회의 안건.
 - 회의일시(date): 'YYYY. M. D. (요일) HH:MM ~ HH:MM' 형식. 종료 시각을 모르면 시작 시각 + 1시간.
 - 회의장소(place): 회의/행사가 실제 진행된 장소.
@@ -193,6 +212,32 @@ RULES = """- 회의는 끝난 뒤 작성하는 문서이므로 완료·과거 �
 - 보완요청(supplement): (1) 서류 간 회의 일자·시간이 서로 다르면 어떤 서류가 어떻게 다른지, (2) 영수증 결제 시각이 회의 시작보다 이르거나 회의 종료 1시간 이내이면 그 사실을 적는다. 문제가 하나도 없으면 정확히 '보완사항 없음'이라고 적는다. (이 값은 회의록 문서 맨 위에도 표시된다.)
 - filenameBase: '[yyyy-mm-dd(요일) 안건요약]' 형식(대괄호 포함). 안건요약은 핵심 안건 10자 내외.
 - 정보를 찾지 못한 값은 빈 문자열/빈 배열로 둔다(추측 금지)."""
+
+
+def load_rules():
+    """규칙.txt 가 있으면 그 내용을 쓴다.
+
+    사용자가 손대지 않은 파일은 프로그램이 업데이트될 때 최신 기본 규칙으로
+    자동 갱신하고, 직접 고친 파일은 건드리지 않는다."""
+    d = _app_dir()
+    path = os.path.join(d, RULES_FILE)
+    base = os.path.join(d, RULES_BASE_FILE)
+    try:
+        if os.path.exists(path):
+            cur = open(path, encoding="utf-8-sig").read()
+            was = open(base, encoding="utf-8-sig").read() if os.path.exists(base) else ""
+            if cur.strip() and cur.strip() != was.strip():
+                body = "\n".join(l for l in cur.splitlines()
+                                 if not l.lstrip().startswith("#")).strip()
+                if body:
+                    return body          # 사용자가 고친 규칙
+        # 처음 실행이거나 손대지 않은 경우 → 최신 기본 규칙으로 써 둔다
+        for p in (path, base):
+            with open(p, "w", encoding="utf-8") as f:
+                f.write(RULES_HEADER + RULES_DEFAULT + "\n")
+    except Exception:
+        log("규칙 파일 처리 실패\n" + traceback.format_exc())
+    return RULES_DEFAULT
 
 
 def build_prompt(meeting_dir, json_path):
@@ -218,7 +263,7 @@ def build_prompt(meeting_dir, json_path):
         '}\n'
         "attendees 는 서명부에 서명한 사람을 소속/이름으로 한 명씩 담으세요.\n"
         "위 JSON 파일 하나만 저장하고 다른 파일은 만들지 마세요. 반드시 한국어로 작성하세요.\n\n"
-        "[규칙]\n" + RULES
+        "[규칙]\n" + load_rules()
     )
 
 
@@ -485,6 +530,95 @@ def _failure_reason(r):
     return "회의록 데이터가 생성되지 않음"
 
 
+# ---- 자동 업데이트 ----
+def _sha256(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _open_url(url, timeout):
+    req = urllib.request.Request(url, headers={
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "meeting-minutes-tool",
+    })
+    return urllib.request.urlopen(req, timeout=timeout)
+
+
+def cleanup_old_versions():
+    """업데이트 후 남은 이전 실행 파일을 지운다."""
+    if not getattr(sys, "frozen", False):
+        return
+    try:
+        old = sys.executable + ".old"
+        if os.path.exists(old):
+            os.remove(old)
+    except Exception:
+        pass
+
+
+def check_update():
+    """새 버전이 있으면 (다운로드주소, sha256), 없으면 None."""
+    if not getattr(sys, "frozen", False):
+        return None            # 소스로 실행 중이면 업데이트 대상이 아니다
+    try:
+        mine = _sha256(sys.executable)
+        with _open_url(UPDATE_API, 20) as r:
+            data = json.loads(r.read().decode("utf-8"))
+    except Exception:
+        return None            # 인터넷이 안 되면 조용히 넘어간다
+    for a in data.get("assets", []):
+        if str(a.get("name", "")).lower().endswith(".exe"):
+            digest = str(a.get("digest") or "").replace("sha256:", "").strip().lower()
+            url = a.get("browser_download_url")
+            if digest and url and digest != mine:
+                return (url, digest)
+    return None
+
+
+def apply_update(url, digest):
+    """새 실행 파일을 받아 교체하고 새 버전을 실행한다.
+
+    윈도우는 실행 중인 파일을 지우지는 못해도 이름은 바꿀 수 있으므로,
+    현재 파일을 .old 로 옮기고 그 자리에 새 파일을 놓는다."""
+    cur = sys.executable
+    new, old = cur + ".new", cur + ".old"
+    try:
+        with _open_url(url, 300) as r, open(new, "wb") as f:
+            shutil.copyfileobj(r, f)
+        if _sha256(new) != digest:
+            os.remove(new)
+            log("업데이트 중단: 내려받은 파일의 해시가 일치하지 않음")
+            return False
+        if os.path.exists(old):
+            try:
+                os.remove(old)
+            except OSError:
+                pass
+        os.replace(cur, old)
+        try:
+            os.replace(new, cur)
+        except Exception:
+            os.replace(old, cur)       # 실패하면 원래대로 되돌린다
+            raise
+        kwargs = {"close_fds": True}
+        if os.name == "nt":
+            kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        subprocess.Popen([cur], **kwargs)
+        return True
+    except Exception:
+        log("업데이트 실패\n" + traceback.format_exc())
+        for p in (new,):
+            try:
+                if os.path.exists(p):
+                    os.remove(p)
+            except OSError:
+                pass
+        return False
+
+
 def default_output_dir():
     """바탕화면을 찾는다. OneDrive 로 옮겨진 경우까지 고려."""
     home = os.path.expanduser("~")
@@ -580,6 +714,7 @@ class App:
         self.output_dir = default_output_dir()
         self.running = False
         self.q = queue.Queue()
+        self.uq = queue.Queue()
 
         drop = tk.Frame(root, bg="#232f42", height=88)
         drop.pack(fill="x", padx=16, pady=(16, 8))
@@ -634,6 +769,53 @@ class App:
         self.start_btn = tk.Button(bottom, text="작업 시작", command=self.start,
                                    bg="#10b981", fg="white", relief="flat", padx=16, pady=8)
         self.start_btn.pack(side="right")
+
+        self.start_update_check()
+
+    # ---- 자동 업데이트 ----
+    def start_update_check(self):
+        if not getattr(sys, "frozen", False):
+            return
+        threading.Thread(target=lambda: self.uq.put(check_update()), daemon=True).start()
+        self.root.after(1500, self.poll_update)
+
+    def poll_update(self):
+        try:
+            found = self.uq.get_nowait()
+        except queue.Empty:
+            self.root.after(1500, self.poll_update)
+            return
+        if not found or self.running:
+            return
+        url, digest = found
+        if not messagebox.askyesno(
+                "업데이트",
+                "새 버전이 나와 있습니다.\n\n지금 업데이트할까요?\n"
+                "내려받아 교체한 뒤 프로그램이 다시 시작됩니다. (1분 내외)"):
+            return
+        self.start_btn.config(state="disabled", text="업데이트 중...")
+        self._set_inputs("disabled")
+        q2 = queue.Queue()
+        threading.Thread(target=lambda: q2.put(apply_update(url, digest)),
+                         daemon=True).start()
+
+        def wait():
+            try:
+                done = q2.get_nowait()
+            except queue.Empty:
+                self.root.after(300, wait)
+                return
+            if done:
+                messagebox.showinfo("업데이트", "업데이트를 마쳤습니다.\n새 창이 곧 열립니다.")
+                self.root.destroy()
+            else:
+                self.start_btn.config(state="normal", text="작업 시작")
+                self._set_inputs("normal")
+                messagebox.showerror(
+                    "업데이트 실패",
+                    "업데이트하지 못했습니다. 지금 버전을 그대로 사용합니다.\n\n"
+                    "자세한 내용:\n" + _log_path())
+        self.root.after(300, wait)
 
     def _set_inputs(self, state):
         for b in (self.btn_one, self.btn_parent, self.btn_out, self.btn_clear):
@@ -800,6 +982,7 @@ def _apply_icon(root):
 
 
 def main():
+    cleanup_old_versions()
     _set_taskbar_identity()
     root = TkinterDnD.Tk() if HAS_DND else tk.Tk()
     _apply_icon(root)
