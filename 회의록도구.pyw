@@ -434,12 +434,17 @@ def _extract_json(text):
 
 
 # CLI 가 영어로 돌려주는 대표적인 오류를 한국어 안내로 바꾼다.
+_LIMIT = "Claude 사용 한도 초과"
 _KNOWN_ERRORS = [
     ("not logged in", "Claude 에 로그인되어 있지 않음 (명령 프롬프트에서 claude 실행 후 로그인)"),
     ("please run /login", "Claude 에 로그인되어 있지 않음 (명령 프롬프트에서 claude 실행 후 로그인)"),
-    ("credit balance", "Claude 사용 한도/잔액 부족"),
-    ("usage limit", "Claude 사용 한도 초과 (잠시 후 다시 시도)"),
+    ("credit balance", "Claude 잔액 부족"),
+    ("session limit", _LIMIT),
+    ("usage limit", _LIMIT),
+    ("hit your limit", _LIMIT),
+    ("quota", _LIMIT),
     ("rate limit", "요청이 너무 잦음 (잠시 후 다시 시도)"),
+    ("overloaded", "Claude 서버가 혼잡함 (잠시 후 다시 시도)"),
     ("network", "네트워크 연결 오류"),
     ("econnrefused", "네트워크 연결 오류"),
     ("etimedout", "네트워크 연결 시간 초과"),
@@ -459,6 +464,12 @@ def _failure_reason(r):
     low = text.lower()
     for key, korean in _KNOWN_ERRORS:
         if key in low:
+            if korean == _LIMIT:
+                # '· resets 7:50pm (Asia/Seoul)' 같은 해제 시각을 함께 알려준다.
+                m = re.search(r"resets?\s+([^\n·]+)", text, re.I)
+                if m:
+                    return "%s — %s 에 풀림" % (korean, m.group(1).strip())
+                return korean + " (한도가 풀린 뒤 다시 시도)"
             return korean
     if text:
         return text.replace("\n", " ")[:120]
