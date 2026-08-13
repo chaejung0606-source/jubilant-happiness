@@ -1056,14 +1056,17 @@ def process_meeting(meeting_dir, output_dir):
     try:
         build_hwpx(data, out)
     except Exception as e:
-        shutil.rmtree(tmp, ignore_errors=True)
+        # 한글 문서를 만들지 못하면 회의록을 통째로 잃지 않도록 워드 문서로 남긴다.
         log("한글 문서 생성 오류: %s\n%s" % (meeting_dir, traceback.format_exc()))
-        return (False, "문서 생성 오류: " + str(e)[:60], "")
-    try:
-        # 한글에서 열리지 않을 때를 대비해 워드 문서도 함께 남긴다.
-        build_docx(data, os.path.splitext(out)[0] + ".docx")
-    except Exception:
-        log("워드 문서 생성 실패(한글 문서는 정상)\n" + traceback.format_exc())
+        try:
+            if os.path.exists(out):
+                os.remove(out)
+            out = _unique(os.path.join(output_dir, base + ".docx"))
+            build_docx(data, out)
+        except Exception:
+            shutil.rmtree(tmp, ignore_errors=True)
+            log("워드 문서 생성도 실패\n" + traceback.format_exc())
+            return (False, "문서 생성 오류: " + str(e)[:60], "")
     note = str(data.get("supplement", "") or "").strip() or "보완사항 없음"
     shutil.rmtree(tmp, ignore_errors=True)
     return (True, out, note)

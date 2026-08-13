@@ -3,7 +3,8 @@
 <img src="icon-preview.png" width="96" align="right" alt="앱 아이콘">
 
 회의 자료가 들어있는 폴더를 넣으면, 폴더마다 회의록 1건을 사업단 표준 양식의
-`.docx` 문서로 만들어 줍니다. API 키 없이 이 PC에 로그인된 Claude(Max 구독)로 동작합니다.
+**한글 문서(`.hwpx`)** 로 만들어 줍니다. 한글에서 바로 열어 고칠 수 있습니다.
+API 키 없이 이 PC에 로그인된 Claude 구독으로 동작합니다.
 
 ---
 
