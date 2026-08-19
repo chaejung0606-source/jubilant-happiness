@@ -20,6 +20,16 @@ import threading
 import traceback
 import subprocess
 import urllib.request
+
+# .exe 로 묶여 실행될 때 필요한 코덱을 시작하자마자 불러 둔다.
+# 파이썬은 코덱을 쓰는 순간에 import 하는데, 그 사이 임시 폴더(_MEIxxxx)가
+# 백신·정리 프로그램에 지워지면 import 가 실패해 파일을 못 읽게 된다.
+try:
+    import encodings.utf_8_sig    # noqa: F401
+    import encodings.cp949        # noqa: F401
+    import encodings.idna         # noqa: F401  (urllib 이 주소를 처리할 때 필요)
+except Exception:
+    pass
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
@@ -66,6 +76,19 @@ def _app_dir():
         return os.path.dirname(os.path.abspath(__file__))
     except Exception:
         return os.path.dirname(os.path.abspath(sys.argv[0]))
+
+
+def _read_text(path):
+    """BOM 이 있어도 안전하게 읽는다.
+
+    utf-8-sig 로 여는 대신 바이트로 읽고 BOM 을 직접 떼어낸다.
+    .exe 로 묶인 상태에서 임시 폴더가 사라지면 utf-8-sig 코덱을 뒤늦게
+    불러오다 실패하는데, utf-8 은 시작할 때 이미 올라와 있어 안전하다."""
+    with open(path, "rb") as f:
+        raw = f.read()
+    if raw.startswith(b"\xef\xbb\xbf"):
+        raw = raw[3:]
+    return raw.decode("utf-8", "replace")
 
 
 def _resource_dir():
@@ -232,8 +255,8 @@ def load_rules():
     base = os.path.join(d, RULES_BASE_FILE)
     try:
         if os.path.exists(path):
-            cur = open(path, encoding="utf-8-sig").read()
-            was = open(base, encoding="utf-8-sig").read() if os.path.exists(base) else ""
+            cur = _read_text(path)
+            was = _read_text(base) if os.path.exists(base) else ""
             if cur.strip() and cur.strip() != was.strip():
                 body = "\n".join(l for l in cur.splitlines()
                                  if not l.lstrip().startswith("#")).strip()
@@ -1005,7 +1028,7 @@ def process_meeting(meeting_dir, output_dir):
         "-p", build_prompt(meeting_dir, json_path),
         "--output-format", "json",
         "--permission-mode", "acceptEdits",
-        "--allowedTools", "Read,Glob,Grep,Write,Edit,Bash",
+        "--allowedTools", "Read,Glob,Grep,Write,Edit,Bash,PowerShell",
         "--add-dir", tmp,
     ])
 
@@ -1030,14 +1053,14 @@ def process_meeting(meeting_dir, output_dir):
         json_path = cands[0] if cands else None
     if json_path and os.path.exists(json_path):
         try:
-            with open(json_path, encoding="utf-8-sig") as f:
-                data = json.load(f)
+            text = _read_text(json_path)
         except Exception:
-            try:
-                with open(json_path, encoding="utf-8-sig") as f:
-                    data = _extract_json(f.read())
-            except Exception:
-                data = None
+            log("결과 파일을 읽지 못함: %s\n%s" % (json_path, traceback.format_exc()))
+            text = ""
+        try:
+            data = json.loads(text)
+        except Exception:
+            data = _extract_json(text)
 
     if data is None:
         # 파일이 없으면 CLI 출력(JSON)의 result 안에 내용이 들어있는 경우가 있다.
