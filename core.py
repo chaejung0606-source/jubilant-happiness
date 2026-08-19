@@ -276,6 +276,9 @@ def build_prompt(meeting_dir, json_path):
     return (
         "당신은 대학 사업단의 회의비 정산용 '회의록' 작성 도구입니다.\n"
         "'" + meeting_dir + "' 폴더 안의 모든 회의 자료 파일을 읽으세요(하위 폴더 포함).\n"
+        "다만 이 폴더에 이미 만들어져 있는 회의록 문서(.hwpx, .docx 파일 중 파일명이 "
+        "'[' 로 시작하는 것)는 이 도구가 앞서 만든 결과물이므로 자료가 아닙니다. "
+        "그런 파일은 열지도 말고 참고하지도 마세요.\n"
         "PDF와 이미지(영수증·서명부 사진 등)는 직접 읽으세요.\n"
         ".docx 는 ZIP 압축 파일이므로, Bash 도구에서 사용 가능한 방법(unzip, python, powershell 등 "
         "그 환경에서 실제로 동작하는 것)으로 풀어 word/document.xml 의 본문 텍스트를 읽으세요.\n"
@@ -916,20 +919,8 @@ def _failure_reason(r):
     return "회의록 데이터가 생성되지 않음"
 
 
-def default_output_dir():
-    """바탕화면을 찾는다. OneDrive 로 옮겨진 경우까지 고려."""
-    home = os.path.expanduser("~")
-    for d in (os.path.join(home, "Desktop"),
-              os.path.join(home, "OneDrive", "Desktop"),
-              os.path.join(home, "OneDrive", "바탕 화면"),
-              os.path.join(home, "바탕 화면")):
-        if os.path.isdir(d):
-            return os.path.join(d, "회의록 생성")
-    return os.path.join(home, "회의록 생성")
-
-
 # ---- 한 회의 폴더 처리 (백그라운드 스레드에서 호출) ----
-def process_meeting(meeting_dir, output_dir):
+def process_meeting(meeting_dir):
     exe = find_claude()
     if not exe:
         return (False, "claude 명령을 찾을 수 없음", "")
@@ -987,7 +978,8 @@ def process_meeting(meeting_dir, output_dir):
         return (False, _failure_reason(r), "")
 
     base = _sanitize(data.get("filenameBase") or "회의록")
-    out = _unique(os.path.join(output_dir, base + ".hwpx"))
+    # 회의록은 회의 자료가 들어 있는 그 폴더에 저장한다.
+    out = _unique(os.path.join(meeting_dir, base + ".hwpx"))
     try:
         build_hwpx(data, out)
     except Exception as e:
@@ -996,7 +988,7 @@ def process_meeting(meeting_dir, output_dir):
         try:
             if os.path.exists(out):
                 os.remove(out)
-            out = _unique(os.path.join(output_dir, base + ".docx"))
+            out = _unique(os.path.join(meeting_dir, base + ".docx"))
             build_docx(data, out)
         except Exception:
             shutil.rmtree(tmp, ignore_errors=True)
@@ -1016,7 +1008,6 @@ class App:
 
         self.meetings = []
         self.results = {}          # tree item -> 생성된 파일의 전체 경로
-        self.output_dir = default_output_dir()
         self.running = False
         self.q = queue.Queue()
 
@@ -1039,9 +1030,6 @@ class App:
         self.btn_parent = tk.Button(bar, text="＋ 상위 폴더 추가(하위 폴더별로 회의)", command=self.add_parent,
                                     bg="#2563eb", fg="white", relief="flat", padx=12, pady=6)
         self.btn_parent.pack(side="left", padx=8)
-        self.btn_out = tk.Button(bar, text="출력 폴더 선택", command=self.pick_output,
-                                 bg="#475569", fg="white", relief="flat", padx=12, pady=6)
-        self.btn_out.pack(side="right")
 
         cols = ("meeting", "status", "result", "note")
         self.tree = ttk.Treeview(root, columns=cols, show="headings", height=15)
@@ -1056,10 +1044,9 @@ class App:
         self.tree.pack(fill="both", expand=True, padx=16, pady=8)
         self.tree.bind("<Double-1>", self.open_result)
 
-        self.out_lbl = tk.Label(root, text="", bg="#1b2432", fg="#9fb3c8",
-                                font=(FONT, 9), anchor="w")
-        self.out_lbl.pack(fill="x", padx=16)
-        self.update_out_label()
+        tk.Label(root, text="회의록은 각 회의 폴더 안에 만들어집니다.",
+                 bg="#1b2432", fg="#9fb3c8", font=(FONT, 9), anchor="w"
+                 ).pack(fill="x", padx=16)
 
         bottom = tk.Frame(root, bg="#1b2432")
         bottom.pack(fill="x", padx=16, pady=(4, 16))
@@ -1075,7 +1062,7 @@ class App:
         self.start_btn.pack(side="right")
 
     def _set_inputs(self, state):
-        for b in (self.btn_one, self.btn_parent, self.btn_out, self.btn_clear):
+        for b in (self.btn_one, self.btn_parent, self.btn_clear):
             b.config(state=state)
 
     def add_meeting_dir(self, d):
@@ -1106,15 +1093,6 @@ class App:
         for path in self.root.tk.splitlist(event.data):
             if os.path.isdir(path):
                 self.add_meeting_dir(path)
-
-    def pick_output(self):
-        d = filedialog.askdirectory(title="회의록을 저장할 출력 폴더 선택")
-        if d:
-            self.output_dir = d
-            self.update_out_label()
-
-    def update_out_label(self):
-        self.out_lbl.config(text="출력 폴더: " + self.output_dir)
 
     def clear(self):
         if self.running:
@@ -1149,13 +1127,6 @@ class App:
             messagebox.showerror("claude 를 사용할 수 없습니다", info)
             return
 
-        try:
-            os.makedirs(self.output_dir, exist_ok=True)
-        except Exception as e:
-            messagebox.showerror("오류", "출력 폴더를 만들 수 없습니다.\n%s\n\n%s"
-                                 % (self.output_dir, e))
-            return
-
         self.running = True
         self.start_btn.config(state="disabled", text="작업 중...")
         self._set_inputs("disabled")
@@ -1177,7 +1148,7 @@ class App:
             for d, item in meetings:
                 self.q.put(("status", item, "작성 중..."))
                 try:
-                    ok, info, note = process_meeting(d, self.output_dir)
+                    ok, info, note = process_meeting(d)
                 except Exception as e:
                     log("회의 처리 중 오류: %s\n%s" % (d, traceback.format_exc()))
                     ok, info, note = False, "오류: " + str(e)[:60], ""
@@ -1208,7 +1179,7 @@ class App:
                     self.running = False
                     self.start_btn.config(state="normal", text="작업 시작")
                     self._set_inputs("normal")
-                    messagebox.showinfo("완료", "작업이 끝났습니다.\n출력 폴더:\n" + self.output_dir)
+                    messagebox.showinfo("완료", "작업이 끝났습니다.\n\n회의록은 각 회의 폴더 안에 만들어졌습니다.")
                     return
         except queue.Empty:
             pass
