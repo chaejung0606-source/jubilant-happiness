@@ -13,6 +13,7 @@ import subprocess
 
 APP_NAME = "회의록도구"
 SRC = "회의록도구.pyw"
+CORE = "core.py"
 ICON = "icon.ico"
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -89,8 +90,9 @@ def main():
     say("=" * 58)
     say()
 
-    if not os.path.exists(SRC):
-        die("'%s' 파일이 이 폴더에 없습니다." % SRC)
+    for need in (SRC, CORE):
+        if not os.path.exists(need):
+            die("'%s' 파일이 이 폴더에 없습니다." % need)
 
     say("[1/4] 필요한 도구를 확인합니다.")
     if not ensure("PyInstaller", "pyinstaller"):
@@ -121,6 +123,9 @@ def main():
         args += ["--icon", ICON]
         # 프로그램 안에서도 창 아이콘으로 쓰도록 함께 넣는다
         args += ["--add-data", ICON + os.pathsep + "."]
+    # 본체를 함께 넣어 둔다. 인터넷이 안 되거나 처음 실행할 때 쓰인다.
+    if os.path.exists(os.path.join(HERE, CORE)):
+        args += ["--add-data", CORE + os.pathsep + "."]
     if has_dnd:
         args += ["--collect-all", "tkinterdnd2"]
     args.append(SRC)
