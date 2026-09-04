@@ -176,10 +176,8 @@ def _run_kwargs(cwd, timeout):
 
 LOGIN_HELP = (
     "Claude 에 로그인되어 있지 않은 것으로 보입니다.\n\n"
-    "로그인이 필요하다면 아래 순서로 한 번만 하시면 됩니다.\n\n"
-    "  1. 시작 메뉴에서 '명령 프롬프트' 를 엽니다.\n"
-    "  2. claude auth login --claudeai  를 입력하고 Enter 를 누릅니다.\n"
-    "  3. 안내에 따라 로그인합니다. (브라우저가 열립니다)\n\n"
+    "로그인이 필요하다면 이 창을 닫고 화면 오른쪽 위의\n"
+    "[Claude 로그인] 단추를 누르세요. 알아서 로그인 창을 열어 드립니다.\n\n"
     "다만 이 확인이 틀릴 수도 있습니다.\n"
     "데스크톱 Claude 앱을 함께 쓰고 있거나 로그인 정보를 갱신하는 중이면\n"
     "실제로는 로그인되어 있는데도 이렇게 보일 수 있습니다.\n\n"
@@ -1049,6 +1047,9 @@ class App:
         self.btn_parent = tk.Button(bar, text="＋ 상위 폴더 추가(하위 폴더별로 회의)", command=self.add_parent,
                                     bg="#2563eb", fg="white", relief="flat", padx=12, pady=6)
         self.btn_parent.pack(side="left", padx=8)
+        self.btn_login = tk.Button(bar, text="Claude 로그인", command=self.open_login,
+                                   bg="#475569", fg="white", relief="flat", padx=12, pady=6)
+        self.btn_login.pack(side="right")
 
         cols = ("meeting", "status", "result", "note")
         self.tree = ttk.Treeview(root, columns=cols, show="headings", height=15)
@@ -1080,8 +1081,36 @@ class App:
                                    bg="#10b981", fg="white", relief="flat", padx=16, pady=8)
         self.start_btn.pack(side="right")
 
+    def open_login(self):
+        """Claude 로그인 창을 대신 열어 준다. (claude 가 PATH 에 없어도 동작)"""
+        exe = find_claude()
+        if not exe:
+            messagebox.showerror(
+                "claude 를 찾을 수 없습니다",
+                "Claude Code 가 설치되어 있는지 확인해 주세요.\n\n"
+                "설치했는데도 이 메시지가 보이면 컴퓨터를 다시 시작해 보세요.")
+            return
+        try:
+            kwargs = {}
+            if os.name == "nt":
+                # 로그인 절차가 눈에 보여야 하므로 새 콘솔 창에서 실행한다.
+                kwargs["creationflags"] = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
+            subprocess.Popen(claude_command(exe, ["auth", "login", "--claudeai"]),
+                             **kwargs)
+        except Exception as e:
+            log("로그인 창 실행 실패\n" + traceback.format_exc())
+            messagebox.showerror("오류", "로그인 창을 열지 못했습니다.\n\n%s" % e)
+            return
+        messagebox.showinfo(
+            "Claude 로그인",
+            "로그인 창을 열었습니다.\n\n"
+            "새로 열린 검은 창의 안내를 따라가시면 브라우저가 열립니다.\n"
+            "브라우저에서 로그인을 마치면 검은 창이 알아서 끝납니다.\n"
+            "그 사이 검은 창에는 아무것도 입력하지 마세요.\n\n"
+            "로그인이 끝나면 이 프로그램에서 [작업 시작] 을 다시 누르세요.")
+
     def _set_inputs(self, state):
-        for b in (self.btn_one, self.btn_parent, self.btn_clear):
+        for b in (self.btn_one, self.btn_parent, self.btn_login, self.btn_clear):
             b.config(state=state)
 
     def add_meeting_dir(self, d):
