@@ -175,43 +175,51 @@ def _run_kwargs(cwd, timeout):
 
 
 LOGIN_HELP = (
-    "Claude 에 로그인되어 있지 않습니다.\n\n"
-    "아래 순서로 한 번만 로그인하면 됩니다.\n\n"
+    "Claude 에 로그인되어 있지 않은 것으로 보입니다.\n\n"
+    "로그인이 필요하다면 아래 순서로 한 번만 하시면 됩니다.\n\n"
     "  1. 시작 메뉴에서 '명령 프롬프트' 를 엽니다.\n"
-    "  2. claude  를 입력하고 Enter 를 누릅니다.\n"
-    "  3. 안내에 따라 로그인합니다. (브라우저가 열립니다)\n"
-    "  4. 로그인이 끝나면 이 프로그램에서 [작업 시작] 을 다시 누릅니다.\n\n"
-    "이미 로그인했는데도 이 메시지가 보이면, 명령 프롬프트에서\n"
-    "claude auth status  를 실행해 결과를 확인해 주세요."
+    "  2. claude auth login --claudeai  를 입력하고 Enter 를 누릅니다.\n"
+    "  3. 안내에 따라 로그인합니다. (브라우저가 열립니다)\n\n"
+    "다만 이 확인이 틀릴 수도 있습니다.\n"
+    "데스크톱 Claude 앱을 함께 쓰고 있거나 로그인 정보를 갱신하는 중이면\n"
+    "실제로는 로그인되어 있는데도 이렇게 보일 수 있습니다.\n\n"
+    "그래도 지금 작업을 시작할까요?\n"
+    "(이미 로그인하셨다면 [예] 를 누르세요. 실제로 로그인이 안 되어 있으면\n"
+    " 각 회의가 '로그인되어 있지 않음' 으로 표시될 뿐 프로그램은 멀쩡합니다.)"
 )
 
 
 def check_claude():
-    """실행 전 점검. (사용 가능하면 (True, 버전문자열))"""
+    """실행 전 점검.
+
+    돌려주는 값은 (상태, 안내문).
+    상태는 'ok'(정상), 'no_claude'(claude 를 쓸 수 없음), 'no_login'(로그인 의심)."""
     exe = find_claude()
     if not exe:
-        return (False, "claude 명령을 찾을 수 없습니다.\n\n"
-                       "Claude Code 를 설치한 뒤 컴퓨터를 다시 시작하거나,\n"
-                       "명령 프롬프트에서 'claude --version' 이 동작하는지 확인해 주세요.")
+        return ("no_claude", "claude 명령을 찾을 수 없습니다.\n\n"
+                             "Claude Code 를 설치한 뒤 컴퓨터를 다시 시작하거나,\n"
+                             "명령 프롬프트에서 'claude --version' 이 동작하는지 확인해 주세요.")
     try:
         r = subprocess.run(claude_command(exe, ["--version"]), **_run_kwargs(None, 60))
     except Exception as e:
-        return (False, "claude 실행에 실패했습니다.\n\n%s\n%s" % (exe, e))
+        return ("no_claude", "claude 실행에 실패했습니다.\n\n%s\n%s" % (exe, e))
     if r.returncode != 0:
-        return (False, "claude 실행에 실패했습니다.\n\n%s\n%s"
+        return ("no_claude", "claude 실행에 실패했습니다.\n\n%s\n%s"
                 % (exe, (r.stderr or r.stdout or "").strip()[:300]))
     version = (r.stdout or "").strip()
 
-    # 설치되어 있어도 로그인이 안 되어 있으면 회의록을 한 건도 만들 수 없다.
+    # 로그인 여부는 참고용으로만 본다. 이 확인이 틀려도 작업을 막지 않는다.
     try:
         a = subprocess.run(claude_command(exe, ["auth", "status", "--json"]),
                            **_run_kwargs(None, 60))
         info = _extract_json(a.stdout)
         if isinstance(info, dict) and info.get("loggedIn") is False:
-            return (False, LOGIN_HELP)
+            log("로그인 확인 결과 loggedIn=false\nstdout=%s\nstderr=%s"
+                % ((a.stdout or "")[:500], (a.stderr or "")[:500]))
+            return ("no_login", LOGIN_HELP)
     except Exception:
         pass        # 예전 버전이라 auth 명령이 없으면 그냥 넘어간다
-    return (True, version)
+    return ("ok", version)
 
 
 # ---- 회의록 작성 규칙 (여기만 고치면 문체/판단 기준이 바뀝니다) ----
@@ -1133,10 +1141,14 @@ class App:
             messagebox.showinfo("안내", "먼저 회의 폴더를 추가하세요.")
             return
 
-        ok, info = check_claude()
-        if not ok:
+        state, info = check_claude()
+        if state == "no_claude":
             messagebox.showerror("claude 를 사용할 수 없습니다", info)
             return
+        if state == "no_login":
+            # 이 확인은 틀릴 수 있으므로 막지 않고 물어본다.
+            if not messagebox.askyesno("로그인 확인", info):
+                return
 
         self.running = True
         self.start_btn.config(state="disabled", text="작업 중...")
