@@ -32,7 +32,7 @@ try:
 except Exception:
     pass
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
+from tkinter import ttk, filedialog, messagebox, simpledialog
 
 # 드래그&드롭(선택): tkinterdnd2 가 있으면 사용, 없으면 버튼으로만
 try:
@@ -52,6 +52,7 @@ TIMEOUT_SEC = 1800
 
 
 # 규칙 파일 (프로그램 옆에 두면 이 내용이 우선 적용된다)
+SETTINGS_FILE = "설정.txt"
 RULES_FILE = "규칙.txt"
 RULES_BASE_FILE = "규칙.기본값.txt"
 RULES_HEADER = (
@@ -256,6 +257,37 @@ RULES_DEFAULT = """- 회의는 끝난 뒤 작성하는 문서이므로 완료·�
   문제가 하나도 없으면 정확히 '보완사항 없음'이라고 적는다. (이 값은 회의록 문서 맨 위에도 표시된다.)
 - filenameBase: 'yyyy-mm-dd 요일 안건요약' 형식(예: '2026-07-22 수 예산집행검토'). 안건요약은 핵심 안건 10자 내외. 정산 시스템에 올릴 파일 이름이므로 대괄호·괄호·따옴표·빗금 같은 특수문자를 절대 넣지 말고 한글·영문·숫자·공백·하이픈만 사용한다.
 - 정보를 찾지 못한 값은 빈 문자열/빈 배열로 둔다(추측 금지)."""
+
+
+def load_settings():
+    """프로그램 옆의 설정.txt 를 읽는다. (이 PC 에만 있는 파일)"""
+    out = {}
+    p = os.path.join(_app_dir(), SETTINGS_FILE)
+    try:
+        if os.path.exists(p):
+            for line in _read_text(p).splitlines():
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, v = line.split("=", 1)
+                out[k.strip()] = v.strip()
+    except Exception:
+        log("설정 파일 읽기 실패\n" + traceback.format_exc())
+    return out
+
+
+def save_setting(key, value):
+    data = load_settings()
+    data[key] = value
+    p = os.path.join(_app_dir(), SETTINGS_FILE)
+    try:
+        with open(p, "w", encoding="utf-8") as f:
+            f.write("# 회의록도구 설정 (이 PC 에만 저장됩니다)\n"
+                    "# 이메일 = Claude 로그인 화면에 미리 채워 넣을 주소\n\n")
+            for k, v in data.items():
+                f.write("%s = %s\n" % (k, v))
+    except Exception:
+        log("설정 파일 저장 실패\n" + traceback.format_exc())
 
 
 def load_rules():
@@ -1090,13 +1122,29 @@ class App:
                 "Claude Code 가 설치되어 있는지 확인해 주세요.\n\n"
                 "설치했는데도 이 메시지가 보이면 컴퓨터를 다시 시작해 보세요.")
             return
+        # 로그인 화면에 미리 채워 넣을 이메일. 이 PC 의 설정.txt 에만 저장된다.
+        email = load_settings().get("이메일", "").strip()
+        if not email:
+            try:
+                email = (simpledialog.askstring(
+                    "Claude 로그인",
+                    "로그인에 사용할 이메일 주소를 입력하세요.\n"
+                    "로그인 화면에 미리 채워집니다. (이 PC 에만 저장됩니다)",
+                    parent=self.root) or "").strip()
+            except Exception:
+                email = ""
+            if email:
+                save_setting("이메일", email)
+
+        args = ["auth", "login", "--claudeai"]
+        if email:
+            args += ["--email", email]
         try:
             kwargs = {}
             if os.name == "nt":
                 # 로그인 절차가 눈에 보여야 하므로 새 콘솔 창에서 실행한다.
                 kwargs["creationflags"] = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
-            subprocess.Popen(claude_command(exe, ["auth", "login", "--claudeai"]),
-                             **kwargs)
+            subprocess.Popen(claude_command(exe, args), **kwargs)
         except Exception as e:
             log("로그인 창 실행 실패\n" + traceback.format_exc())
             messagebox.showerror("오류", "로그인 창을 열지 못했습니다.\n\n%s" % e)

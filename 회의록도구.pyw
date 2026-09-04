@@ -30,6 +30,7 @@ import tkinter                  # noqa: F401
 import tkinter.ttk              # noqa: F401
 import tkinter.filedialog       # noqa: F401
 import tkinter.messagebox       # noqa: F401
+import tkinter.simpledialog     # noqa: F401
 from tkinter import messagebox
 try:
     import encodings.utf_8_sig  # noqa: F401
