@@ -228,7 +228,8 @@ RULES_DEFAULT = """- 회의는 끝난 뒤 작성하는 문서이므로 완료·�
 - 회의장소(place): 회의/행사가 실제 진행된 장소.
 - 회의비 사용처(expensePlace): 영수증에 찍힌 가맹점(상호)명.
 - 금액(amount): 영수증 결제 합계 금액(예: '120,000원'). 여러 영수증이면 합산.
-- 참석자(attendees): 각 항목은 {"org":"소속","name":"이름"} 객체. 소속을 알 수 없으면 org 를 '강원대학교'로 둔다. 추측 금지.
+- 참석 인원 수(attendeeCount): 회의비 기안공문(지출품의서·내부결재·지출결의서 등)에 적힌 참석 인원 수를 숫자로만 넣는다(예: 8). '1인 15,000원 × 8명', '단가 20,000원 / 인원 5명' 처럼 단가별 인원이 적혀 있으면 그 인원을 읽고, 단가가 여러 줄로 나뉘어 있으면 모두 더한 값을 넣는다. 공문에서 인원 수를 찾을 수 없으면 0. 이 값은 회의록의 참석자 칸을 몇 줄 만들지 정하는 데만 쓰이며, 회의내용 서술에는 절대 인원 수를 쓰지 않는다.
+- 참석자(attendees): 각 항목은 {"org":"소속","name":"이름"} 객체. 소속을 알 수 없으면 org 를 '강원대학교'로 둔다. 추측 금지. 이름을 아는 사람만 넣으면 되고, attendeeCount 에 모자라는 만큼은 프로그램이 빈칸으로 채우므로 이름을 지어내지 않는다.
   · 참석 서명부가 있으면 서명부에 실제로 서명한 사람만 넣는다.
   · 서명부가 없으면 회의계획서·공문·참석자 명단 등 다른 서류에서 참석자로 확인되는 사람을 넣는다. 그마저 없으면 빈 배열.
 - 참석 서명부는 금액(amount)이 500,000원 이상일 때만 반드시 있어야 한다. 500,000원 이상인데 서명부가 없으면 supplement 에 '회의비 50만원 이상 집행 건은 참석 서명부가 필요하나 확인되지 않음'이라고 적는다. 500,000원 미만이면 서명부가 없어도 보완사항으로 적지 않는다.
@@ -336,11 +337,14 @@ def build_prompt(meeting_dir, json_path):
         '  "place": "회의장소",\n'
         '  "expensePlace": "회의비 사용처(영수증 가맹점명)",\n'
         '  "amount": "금액(영수증 합계, 예: 120,000원)",\n'
+        '  "attendeeCount": 8,\n'
         '  "attendees": [{"org": "강원대학교", "name": "이성재"}, {"org": "강원대학교", "name": "황승재"}],\n'
         '  "content": ["회의내용 1문단(여러 문장)", "2문단(여러 문장)"],\n'
         '  "supplement": "보완요청. 문제 없으면 \\"보완사항 없음\\""\n'
         '}\n'
-        "attendees 는 서명부에 서명한 사람을 소속/이름으로 한 명씩 담으세요.\n"
+        "attendees 는 이름을 확인할 수 있는 사람만 소속/이름으로 한 명씩 담으세요.\n"
+        "attendeeCount 는 회의비 기안공문에 적힌 참석 인원 수입니다. 단가별 인원이 적혀 있으면 "
+        "그 수(여러 단가면 합계)를 숫자로 넣으세요. 찾지 못하면 0 을 넣으세요.\n"
         "위 JSON 파일 하나만 저장하고 다른 파일은 만들지 마세요. 반드시 한국어로 작성하세요.\n\n"
         "[규칙]\n" + load_rules()
     )
@@ -416,6 +420,23 @@ def _norm_att(a):
     return (org or DEFAULT_ORG), name
 
 
+def _attendee_rows(data):
+    """참석자 표에 넣을 (소속, 이름) 목록.
+
+    회의비 기안공문에 적힌 인원 수(attendeeCount)만큼 칸을 만든다.
+    이름을 아는 사람부터 채우고, 모자라는 만큼은 빈칸으로 남겨
+    나중에 손으로 적을 수 있게 한다."""
+    rows = [_norm_att(a) for a in (data.get("attendees") or []) if _norm_att(a)[1]]
+    try:
+        want = int(re.sub(r"[^0-9]", "", str(data.get("attendeeCount") or "")) or 0)
+    except Exception:
+        want = 0
+    want = min(want, 60)                 # 비정상적으로 큰 값 방어
+    while len(rows) < want:
+        rows.append((DEFAULT_ORG, ""))
+    return rows or [(DEFAULT_ORG, "")]
+
+
 def build_docx(data, out_path):
     agenda = data.get("agenda", "")
     date = data.get("date", "")
@@ -425,7 +446,7 @@ def build_docx(data, out_path):
         content = [content]
     supplement = str(data.get("supplement", "") or "").strip() or "보완사항 없음"
     has_issue = supplement != "보완사항 없음"
-    attendees = [_norm_att(a) for a in (data.get("attendees") or []) if _norm_att(a)[1]]
+    attendees = _attendee_rows(data)
 
     def kv(label, value):
         return ('<w:tr>' + _tc(_cp(label, bold=True, align="center"), w=1900, shade=SHADE)
@@ -681,7 +702,7 @@ def _hwpx_section_xml(data):
         content = [content]
     supplement = str(data.get("supplement", "") or "").strip() or "보완사항 없음"
     has_issue = supplement != "보완사항 없음"
-    attendees = [_norm_att(a) for a in (data.get("attendees") or []) if _norm_att(a)[1]]
+    attendees = _attendee_rows(data)
 
     w = [int(round(HWPX_TBL_W * n / 9200.0)) for n in (1900, 1900)]
     w.append(HWPX_TBL_W - w[0] - w[1])
@@ -707,7 +728,7 @@ def _hwpx_section_xml(data):
         r += 1
 
     # 참석자 (세로 병합은 rowSpan 으로 표현하고, 병합된 행에서는 셀을 아예 넣지 않는다)
-    att = attendees or [(DEFAULT_ORG, "")]
+    att = attendees
     span = 1 + len(att)
     rows_xml += tr([_hwpx_tc(_hwpx_p("참석자", label, 1), 0, r, 1, span, w[0], RH, shade=True),
                     _hwpx_tc(_hwpx_p("소속", label, 1), 1, r, 1, 1, w[1], RH, shade=True),
