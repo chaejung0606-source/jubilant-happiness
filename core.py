@@ -184,7 +184,7 @@ LOGIN_HELP = (
     "실제로는 로그인되어 있는데도 이렇게 보일 수 있습니다.\n\n"
     "그래도 지금 작업을 시작할까요?\n"
     "(이미 로그인하셨다면 [예] 를 누르세요. 실제로 로그인이 안 되어 있으면\n"
-    " 각 회의가 '로그인되어 있지 않음' 으로 표시될 뿐 프로그램은 멀쩡합니다.)"
+    " 첫 회의가 실패하면서 바로 알려 드리고, 남은 회의는 건너뜁니다.)"
 )
 
 
@@ -948,10 +948,15 @@ def _extract_json(text):
 
 # CLI 가 영어로 돌려주는 대표적인 오류를 한국어 안내로 바꾼다.
 _LIMIT = "Claude 사용 한도 초과"
+_LOGIN = "Claude 에 로그인되어 있지 않음 (오른쪽 위 [Claude 로그인] 단추를 누르세요)"
+_BALANCE = "Claude 잔액 부족"
 _KNOWN_ERRORS = [
-    ("not logged in", "Claude 에 로그인되어 있지 않음 (명령 프롬프트에서 claude 실행 후 로그인)"),
-    ("please run /login", "Claude 에 로그인되어 있지 않음 (명령 프롬프트에서 claude 실행 후 로그인)"),
-    ("credit balance", "Claude 잔액 부족"),
+    ("not logged in", _LOGIN),
+    ("please run /login", _LOGIN),
+    ("invalid api key", _LOGIN),
+    ("authentication_error", _LOGIN),
+    ("oauth token", _LOGIN),
+    ("credit balance", _BALANCE),
     ("session limit", _LIMIT),
     ("usage limit", _LIMIT),
     ("hit your limit", _LIMIT),
@@ -962,6 +967,22 @@ _KNOWN_ERRORS = [
     ("econnrefused", "네트워크 연결 오류"),
     ("etimedout", "네트워크 연결 시간 초과"),
 ]
+
+
+def _fatal_kind(info):
+    """이번 작업에서 계속 시도해 봐야 소용없는 오류인지 가려낸다.
+
+    로그인·한도·잔액 문제는 남은 회의를 돌려도 똑같이 실패한다.
+    회의 1건마다 20~35턴이 들므로 여기서 멈추는 편이 낫다."""
+    if not info:
+        return ""
+    if info.startswith(_LOGIN):
+        return "login"
+    if info.startswith(_LIMIT):
+        return "limit"
+    if info.startswith(_BALANCE):
+        return "balance"
+    return ""
 
 
 def _failure_reason(r):
@@ -1265,19 +1286,55 @@ class App:
 
     def worker(self, meetings):
         done = 0
+        total = len(meetings)
+        stop = ""        # 로그인·한도 문제로 남은 회의를 건너뛰는 중이면 그 종류
         try:
             for d, item in meetings:
+                if stop:
+                    # 로그인이 풀렸거나 한도가 찼으면 남은 회의도 똑같이 실패한다.
+                    # 회의 1건에 20~35턴이 드므로 헛돌리지 않고 건너뛴다.
+                    done += 1
+                    self.q.put(("skip", item, (done, total)))
+                    continue
                 self.q.put(("status", item, "작성 중..."))
                 try:
                     ok, info, note = process_meeting(d)
                 except Exception as e:
                     log("회의 처리 중 오류: %s\n%s" % (d, traceback.format_exc()))
                     ok, info, note = False, "오류: " + str(e)[:60], ""
+                if not ok:
+                    stop = _fatal_kind(info)
                 done += 1
-                self.q.put(("done", item, (ok, info, note, done, len(meetings))))
+                self.q.put(("done", item, (ok, info, note, done, total)))
         finally:
             # 예외가 나도 UI 가 '작업 중...' 으로 멈추지 않도록 반드시 알린다.
-            self.q.put(("finish", None, None))
+            self.q.put(("finish", None, stop))
+
+    def _finished(self, stop):
+        """작업이 끝났을 때 안내한다. 로그인이 풀려서 멈춘 것이면 바로 복구시켜 준다."""
+        if stop == "login":
+            if messagebox.askyesno(
+                    "로그인이 풀렸습니다",
+                    "Claude 로그인이 풀려 있어 회의록을 만들지 못했습니다.\n\n"
+                    "지금 로그인 창을 열까요?\n"
+                    "(로그인을 마친 뒤 [작업 시작] 을 다시 누르시면 됩니다.\n"
+                    " 목록은 그대로 두셔도 됩니다.)"):
+                self.open_login()
+            return
+        if stop == "limit":
+            messagebox.showinfo(
+                "사용 한도 초과",
+                "Claude 사용 한도에 걸려 남은 회의를 건너뛰었습니다.\n\n"
+                "한도가 풀린 뒤 [작업 시작] 을 다시 누르세요.\n"
+                "(이미 만들어진 회의록은 그대로 남아 있습니다.)")
+            return
+        if stop == "balance":
+            messagebox.showinfo(
+                "잔액 부족",
+                "Claude 잔액이 부족해 남은 회의를 건너뛰었습니다.\n\n"
+                "결제 상태를 확인한 뒤 [작업 시작] 을 다시 누르세요.")
+            return
+        messagebox.showinfo("완료", "작업이 끝났습니다.\n\n회의록은 각 회의 폴더 안에 만들어졌습니다.")
 
     def poll(self):
         try:
@@ -1285,6 +1342,13 @@ class App:
                 kind, item, payload = self.q.get_nowait()
                 if kind == "status":
                     self.tree.set(item, "status", payload)
+                elif kind == "skip":
+                    done, total = payload
+                    self.tree.set(item, "status", "건너뜀")
+                    self.tree.set(item, "result", "⚠ 앞의 오류로 건너뜀 (해결 후 다시 시작)")
+                    self.tree.set(item, "note", "")
+                    self.progress["value"] = done
+                    self.prog_lbl.config(text="%d / %d" % (done, total))
                 elif kind == "done":
                     ok, info, note, done, total = payload
                     self.tree.set(item, "status", "완료" if ok else "실패")
@@ -1300,7 +1364,7 @@ class App:
                     self.running = False
                     self.start_btn.config(state="normal", text="작업 시작")
                     self._set_inputs("normal")
-                    messagebox.showinfo("완료", "작업이 끝났습니다.\n\n회의록은 각 회의 폴더 안에 만들어졌습니다.")
+                    self._finished(payload)
                     return
         except queue.Empty:
             pass
