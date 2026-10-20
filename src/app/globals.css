@@ -1,0 +1,201 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * 사업단 자산관리 플랫폼 — 디자인 시스템
+ * 무광 세라믹 / 비스크 도자기: 아이보리·베이지 서페이스 + 민트·세이지 악센트.
+ * 광택·유리·금속 배제, diffuse 뉴모피즘 그림자 + 은은한 grain.
+ * 본문 텍스트는 가독성을 위해 진한 그린-차콜(ceramic ink)을 사용한다.
+ */
+@layer base {
+  :root {
+    /* semantic (shadcn) tokens — mapped to the matte ceramic theme */
+    --background: 39 33% 92%; /* #F3EDE3 ceramic pageBg */
+    --foreground: 162 12% 20%; /* ceramic ink */
+
+    --card: 40 56% 97%; /* #FFF9EF ivory surface */
+    --card-foreground: 162 12% 20%;
+    --popover: 40 56% 97%;
+    --popover-foreground: 162 12% 20%;
+
+    --primary: 152 24% 60%; /* mint — 밝은 표면이라 전경은 진한 세이지 잉크 */
+    --primary-foreground: 156 26% 16%;
+
+    --secondary: 40 34% 90%; /* warm cream */
+    --secondary-foreground: 150 14% 30%;
+
+    --muted: 40 30% 91%;
+    --muted-foreground: 110 5% 44%;
+
+    --accent: 150 26% 90%; /* soft mint tint */
+    --accent-foreground: 154 20% 30%;
+
+    --destructive: 6 58% 66%; /* soft terracotta */
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 40 20% 85%;
+    --input: 40 22% 85%;
+    --ring: 152 28% 54%;
+
+    --radius: 1rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    background-image:
+      radial-gradient(1200px 640px at 100% -10%, hsl(200 45% 86% / 0.35), transparent 58%),
+      radial-gradient(1000px 560px at -10% 108%, hsl(150 26% 82% / 0.4), transparent 55%),
+      linear-gradient(160deg, hsl(40 40% 94%), hsl(38 30% 90%));
+    background-attachment: fixed;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+@layer components {
+  /* soft pastel surface helpers */
+  .clay {
+    @apply rounded-3xl bg-card shadow-soft;
+  }
+  .clay-inset {
+    box-shadow: inset 2px 2px 6px hsl(39 24% 84% / 0.7), inset -2px -2px 6px hsl(0 0% 100% / 0.9);
+  }
+  .pastel-scroll::-webkit-scrollbar {
+    height: 10px;
+    width: 10px;
+  }
+  .pastel-scroll::-webkit-scrollbar-thumb {
+    background: hsl(39 20% 82%);
+    border-radius: 9999px;
+  }
+  .pastel-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* ───────────────────────────────────────────────────────────────
+ * 무광 세라믹 / 비스크 도자기 디자인 시스템 (랜딩 /welcome 전용, 추가)
+ * 기존 앱 스타일을 덮어쓰지 않도록 독립된 클래스로만 정의한다.
+ * 광택·유리·금속 질감 배제 → diffuse light + 은은한 grain 으로 무광 표현.
+ * ─────────────────────────────────────────────────────────────── */
+@layer components {
+  /* 페이지 배경: 아이보리 바탕 + 아주 약한 민트/하늘 음영 */
+  .ceramic-page {
+    background:
+      radial-gradient(1100px 620px at 10% -10%, rgba(183, 216, 232, 0.30), transparent 55%),
+      radial-gradient(950px 560px at 105% 6%, rgba(175, 207, 193, 0.28), transparent 52%),
+      radial-gradient(800px 700px at 50% 120%, rgba(238, 199, 194, 0.16), transparent 55%),
+      linear-gradient(160deg, #F6F0E6 0%, #F0E7DA 100%);
+  }
+
+  /* 카드/표면 공통: diffuse 하이라이트 + 부드러운 이중 그림자 + 미세 grain */
+  .ceramic {
+    position: relative;
+    background:
+      radial-gradient(circle at 30% 16%, rgba(255, 255, 255, 0.72), transparent 32%),
+      linear-gradient(145deg, #FFF9EF, #F1E8DA);
+    box-shadow: 10px 10px 26px rgba(150, 130, 105, 0.16), -8px -8px 20px rgba(255, 255, 255, 0.82);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+  }
+  .ceramic-2 {
+    position: relative;
+    background:
+      radial-gradient(circle at 30% 16%, rgba(255, 255, 255, 0.6), transparent 32%),
+      linear-gradient(145deg, #F8F1E7, #E9DECF);
+    box-shadow: 10px 10px 26px rgba(150, 130, 105, 0.15), -8px -8px 20px rgba(255, 255, 255, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.45);
+  }
+  /* 눌림(오목) 표면 — 진행바 트랙, 입력 홈 */
+  .ceramic-inset {
+    background: linear-gradient(145deg, #ECE3D5, #F6EFE3);
+    box-shadow: inset 4px 4px 8px rgba(150, 130, 100, 0.20), inset -4px -4px 8px rgba(255, 255, 255, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+  }
+  /* 색 악센트 표면 (아이콘 배지·곡선 레이어) — 모두 무광 */
+  .ceramic-mint {
+    position: relative;
+    background:
+      radial-gradient(circle at 32% 18%, rgba(255, 255, 255, 0.55), transparent 34%),
+      linear-gradient(145deg, #BFDACC, #9DC1B0);
+    box-shadow: 8px 8px 20px rgba(120, 150, 135, 0.24), -6px -6px 16px rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+  }
+  .ceramic-sky {
+    position: relative;
+    background:
+      radial-gradient(circle at 32% 18%, rgba(255, 255, 255, 0.55), transparent 34%),
+      linear-gradient(145deg, #CBE6F0, #A9D0E1);
+    box-shadow: 8px 8px 20px rgba(120, 150, 165, 0.22), -6px -6px 16px rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+  }
+  .ceramic-pink {
+    position: relative;
+    background:
+      radial-gradient(circle at 32% 18%, rgba(255, 255, 255, 0.55), transparent 34%),
+      linear-gradient(145deg, #F3D6D1, #E4B7B1);
+    box-shadow: 8px 8px 20px rgba(170, 140, 135, 0.22), -6px -6px 16px rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+  }
+  .ceramic-sage {
+    position: relative;
+    background:
+      radial-gradient(circle at 32% 18%, rgba(255, 255, 255, 0.5), transparent 34%),
+      linear-gradient(145deg, #B4C7B8, #93AB99);
+    box-shadow: 8px 8px 20px rgba(120, 140, 125, 0.24), -6px -6px 16px rgba(255, 255, 255, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.38);
+  }
+
+  /* pill 버튼 표면 — 무광 세라믹 */
+  .ceramic-btn {
+    position: relative;
+    background:
+      radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.7), transparent 32%),
+      linear-gradient(145deg, #FDF8EE, #E8DDD0);
+    box-shadow: 4px 4px 10px rgba(150, 130, 100, 0.18), -4px -4px 10px rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+  }
+  .ceramic-btn-primary {
+    background:
+      radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.5), transparent 34%),
+      linear-gradient(145deg, #B4D6C6, #8FB9A8);
+    box-shadow: 4px 4px 10px rgba(120, 150, 135, 0.28), -4px -4px 10px rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.45);
+  }
+}
+
+@layer utilities {
+  /* 미세 grain/noise — 도자기 표면의 고운 입자감. 은은하게(0.06), 클릭 방해 없음 */
+  .grain::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0.06;
+    mix-blend-mode: multiply;
+    background-image: radial-gradient(circle, rgba(80, 70, 60, 0.5) 0.5px, transparent 0.6px);
+    background-size: 4px 4px;
+  }
+  /* 살짝 떠오름 hover — 광택 변화 없이 그림자만 깊어짐 */
+  .lift {
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+  }
+  .lift:hover {
+    transform: translateY(-4px);
+  }
+  .press:active {
+    transform: scale(0.98);
+  }
+}
