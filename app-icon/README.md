@@ -13,11 +13,13 @@
 
 > 배경은 **불투명 아이보리**(바깥 영역 투명 아님)입니다.
 
-## 웹(Next.js)에는 이미 적용됨
+## 배포 방식: 웹앱(PWA) — 데스크톱 + 갤럭시 태블릿
+한 코드베이스로 데스크톱 브라우저/설치앱과 안드로이드 태블릿 설치앱을 모두 커버한다.
 - `src/app/favicon.ico` · `src/app/icon.png` · `src/app/apple-icon.png` (App Router 파일 규칙 자동 인식)
-- `public/app-icon-*.png` + `public/site.webmanifest`
+- `public/app-icon-{192,256,512,1024}.png` + `public/site.webmanifest` (PWA 매니페스트, maskable 포함)
+- `public/sw.js` (서비스워커) + `ServiceWorkerRegister` 로 설치 가능 요건 충족
 
-## 데스크톱 패키징에 적용하는 법
+## (선택) 나중에 네이티브 데스크톱 설치본이 필요하면
 ### Tauri (권장)
 1. `src-tauri/icons/` 에 복사:
    - `icon.ico` → `src-tauri/icons/icon.ico`
