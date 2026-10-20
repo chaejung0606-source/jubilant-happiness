@@ -1,107 +1,139 @@
-import { Boxes, Coins, ScanLine, Sparkles, Plus, Search } from "lucide-react";
+import Link from "next/link";
+import {
+  Boxes,
+  Coins,
+  ScanLine,
+  ArrowLeftRight,
+  Wrench,
+  Sparkles,
+  Plus,
+  ChevronRight,
+  AlertTriangle,
+} from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
-import { HeroCard } from "@/components/cards/hero-card";
 import { StatCard } from "@/components/cards/stat-card";
 import { SoftCard, SoftCardHeader } from "@/components/cards/soft-card";
 import { StatusBadge } from "@/components/badges/status-badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Field, NativeSelect } from "@/components/ui/form-controls";
+import { ASSETS, CONSUMABLES, PROMO, LOANS, MONTHLY, won } from "@/lib/dummy";
 
-// 디자인 시스템 쇼케이스 — 이 한 화면이 무광 세라믹 룩을 전부 보여준다.
-// 실제 앱을 만들 땐 이 페이지를 지우고 컴포넌트를 조합해 쓰면 된다.
-const rows = [
-  { no: "A-001", name: "곰두리 스마트톡", tone: "mint" as const, status: "정상", qty: 804 },
-  { no: "A-002", name: "백령잣 선물세트", tone: "cream" as const, status: "재고 주의", qty: 60 },
-  { no: "A-003", name: "세라믹 고블렛잔", tone: "coral" as const, status: "품절", qty: 0 },
-  { no: "A-004", name: "위글위글 보냉백", tone: "sky" as const, status: "정상", qty: 290 },
-];
+export default function DashboardPage() {
+  const total = ASSETS.length;
+  const acquisition = ASSETS.reduce((s, a) => s + a.unitPrice, 0);
+  const loansOut = ASSETS.filter((a) => a.status === "대여중").length;
+  const needsInspection = ASSETS.filter((a) => a.status === "점검필요" || a.status === "수리중").length;
+  const rfidMissing = 2; // 더미
+  const newThisMonth = 3; // 더미
 
-export default function Home() {
+  const lowStock = [
+    ...CONSUMABLES.filter((c) => c.qty <= c.safetyQty).map((c) => ({ name: c.itemName, note: `${c.qty}${c.unit} / 안전 ${c.safetyQty}`, tone: c.statusTone, status: c.status })),
+    ...PROMO.filter((p) => p.qty <= p.safetyQty).map((p) => ({ name: p.name, note: `${p.qty}${p.unit} / 안전 ${p.safetyQty}`, tone: p.statusTone, status: p.status })),
+  ];
+
+  const maxAmount = Math.max(...MONTHLY.map((m) => m.amount));
+  const recent = ASSETS.slice(0, 5);
+
   return (
-    <main className="ceramic-page min-h-screen">
-      <div className="mx-auto w-full max-w-[1120px] animate-fade-in-up px-4 py-8 md:px-8">
-        <PageHeader
-          title="디자인 시스템 스타터"
-          description="무광 세라믹 · 아이보리 + 민트 파스텔. 이 화면의 컴포넌트를 조합해 앱을 만드세요."
-          icon={<Sparkles className="h-6 w-6" />}
-          actions={
-            <>
-              <Button variant="outline" size="sm"><Search className="h-4 w-4" /> 검색</Button>
-              <Button size="sm"><Plus className="h-4 w-4" /> 새로 만들기</Button>
-            </>
-          }
-        />
+    <>
+      <PageHeader
+        title="대시보드"
+        description="사업단 자산·소모품·홍보물품 현황 한눈에 보기"
+        icon={<Sparkles className="h-6 w-6" />}
+        actions={
+          <Button asChild size="sm">
+            <Link href="/assets"><Plus className="h-4 w-4" /> 자산 등록</Link>
+          </Button>
+        }
+      />
 
-        <HeroCard
-          greeting="안녕하세요 👋"
-          subtitle="광택 없이 은은한 그림자와 입자감으로 완성한 무광 세라믹 톤입니다."
-          actions={
-            <>
-              <a className="inline-flex items-center gap-2 rounded-2xl bg-white/90 px-4 py-2.5 text-sm font-semibold text-brand-700 shadow-pill transition hover:bg-white" href="#components">
-                <Sparkles className="h-4 w-4" /> 컴포넌트 보기
-              </a>
-            </>
-          }
-        />
-
-        <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
-          <StatCard label="전체 품목" value="906" sub="건" icon={Boxes} tone="lavender" />
-          <StatCard label="누적 금액" value="11.7억" sub="원" icon={Coins} tone="purple" />
-          <StatCard label="미등록" value="34%" sub="RFID" icon={ScanLine} tone="coral" />
-          <StatCard label="이번 달 신규" value="12" sub="2026-10" icon={Sparkles} tone="mint" />
-        </div>
-
-        <div id="components" className="mt-6 grid gap-6 lg:grid-cols-5">
-          {/* 표 */}
-          <SoftCard className="lg:col-span-3">
-            <SoftCardHeader title="재고 현황" description="카드형 테이블 + 상태 배지" action={<Button variant="ghost" size="sm">전체 보기</Button>} />
-            <div className="overflow-x-auto pastel-scroll">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-black/[0.05] text-left text-xs text-muted-foreground">
-                    <th className="px-3 py-2.5 font-medium">코드</th>
-                    <th className="px-3 py-2.5 font-medium">품명</th>
-                    <th className="px-3 py-2.5 font-medium">상태</th>
-                    <th className="px-3 py-2.5 text-right font-medium">재고</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((r) => (
-                    <tr key={r.no} className="border-b border-black/[0.04] transition-colors last:border-0 hover:bg-accent/60">
-                      <td className="px-3 py-3 font-mono text-xs">{r.no}</td>
-                      <td className="px-3 py-3 font-medium">{r.name}</td>
-                      <td className="px-3 py-3"><StatusBadge label={r.status} tone={r.tone} /></td>
-                      <td className="px-3 py-3 text-right tabular-nums">{r.qty.toLocaleString()}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </SoftCard>
-
-          {/* 폼 + 버튼 + 배지 */}
-          <SoftCard className="lg:col-span-2">
-            <SoftCardHeader title="폼 요소" description="입력 · 선택 · 버튼" />
-            <div className="space-y-3">
-              <Field label="품명" required><Input placeholder="예: 곰두리 스마트톡" /></Field>
-              <Field label="분류" hint="선택"><NativeSelect defaultValue=""><option value="" disabled>선택</option><option>기념품</option><option>소모품</option></NativeSelect></Field>
-              <div className="flex flex-wrap gap-2 pt-1">
-                <Button>기본</Button>
-                <Button variant="soft">소프트</Button>
-                <Button variant="outline">아웃라인</Button>
-                <Button variant="ghost">고스트</Button>
-                <Button variant="destructive">삭제</Button>
-              </div>
-              <div className="flex flex-wrap gap-1.5 pt-1">
-                {(["mint","sky","lavender","purple","cream","apricot","coral","slate"] as const).map((t) => (
-                  <StatusBadge key={t} label={t} tone={t} dot={false} />
-                ))}
-              </div>
-            </div>
-          </SoftCard>
-        </div>
+      {/* 통계 */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4">
+        <StatCard label="총 자산" value={`${total}건`} sub="등록된 전체 자산" icon={Boxes} tone="mint" />
+        <StatCard label="취득 총액" value={won(acquisition)} sub="누적 취득가" icon={Coins} tone="cream" />
+        <StatCard label="RFID 미등록" value={`${rfidMissing}건`} sub="태그 확인 필요" icon={ScanLine} tone="apricot" />
+        <StatCard label="대여중" value={`${loansOut}건`} sub="현재 외부/직원 대여" icon={ArrowLeftRight} tone="sky" />
+        <StatCard label="점검·수리" value={`${needsInspection}건`} sub="조치 필요" icon={Wrench} tone="coral" />
+        <StatCard label="이번달 신규" value={`${newThisMonth}건`} sub="10월 등록" icon={Sparkles} tone="purple" trend={{ value: "지난달 대비 +1", up: true }} />
       </div>
-    </main>
+
+      {/* 차트 + 재고 주의 */}
+      <div className="mt-4 grid gap-4 lg:grid-cols-[1.6fr_1fr]">
+        <SoftCard>
+          <SoftCardHeader title="월별 취득 금액" description="최근 6개월 (단위: 만원)" />
+          <div className="flex h-44 gap-3 sm:gap-5">
+            {MONTHLY.map((m) => (
+              <div key={m.month} className="flex flex-1 flex-col items-center gap-2">
+                <div className="flex w-full flex-1 items-end">
+                  <div
+                    className="w-full rounded-t-xl bg-brand-400/80"
+                    style={{ height: `${Math.max(8, (m.amount / maxAmount) * 100)}%` }}
+                    title={`${m.amount}만원`}
+                  />
+                </div>
+                <span className="text-xs tabular-nums text-muted-foreground">{m.month}</span>
+              </div>
+            ))}
+          </div>
+        </SoftCard>
+
+        <SoftCard>
+          <SoftCardHeader
+            title="재고 주의"
+            description="안전재고 이하 품목"
+            action={<AlertTriangle className="h-5 w-5 text-pastel-apricotInk" />}
+          />
+          <ul className="flex flex-col gap-2.5">
+            {lowStock.map((it) => (
+              <li key={it.name} className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-medium text-foreground">{it.name}</div>
+                  <div className="text-xs text-muted-foreground">{it.note}</div>
+                </div>
+                <StatusBadge label={it.status} tone={it.tone} />
+              </li>
+            ))}
+            {lowStock.length === 0 && <li className="text-sm text-muted-foreground">주의 품목 없음</li>}
+          </ul>
+        </SoftCard>
+      </div>
+
+      {/* 최근 자산 + 대여 현황 */}
+      <div className="mt-4 grid gap-4 lg:grid-cols-[1.6fr_1fr]">
+        <SoftCard padded={false}>
+          <div className="flex items-center justify-between px-6 pt-6">
+            <SoftCardHeader title="최근 등록 자산" className="mb-0" />
+            <Link href="/assets" className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline">
+              전체 보기 <ChevronRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+          <div className="mt-3 divide-y divide-black/[0.05]">
+            {recent.map((a) => (
+              <div key={a.mgmtNo} className="flex items-center justify-between gap-3 px-6 py-3">
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-medium text-foreground">{a.itemName}</div>
+                  <div className="text-xs text-muted-foreground">{a.mgmtNo} · {a.category}</div>
+                </div>
+                <StatusBadge label={a.status} tone={a.statusTone} />
+              </div>
+            ))}
+          </div>
+        </SoftCard>
+
+        <SoftCard>
+          <SoftCardHeader title="대여 현황" description={`진행 중 ${LOANS.length}건`} />
+          <ul className="flex flex-col gap-3">
+            {LOANS.map((l) => (
+              <li key={l.mgmtNo + l.borrower} className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-medium text-foreground">{l.itemName}</div>
+                  <div className="text-xs text-muted-foreground">{l.borrower} · ~{l.dueAt}</div>
+                </div>
+                <StatusBadge label={l.overdue ? "연체" : "대여중"} tone={l.overdue ? "coral" : "sky"} />
+              </li>
+            ))}
+          </ul>
+        </SoftCard>
+      </div>
+    </>
   );
 }
