@@ -128,7 +128,7 @@ function Nav({ pathname }: { pathname: string }) {
 function FooterNote() {
   return (
     <div className="mt-4 rounded-2xl bg-pastel-mint/60 px-3 py-2.5 text-[11px] leading-relaxed text-pastel-mintInk">
-      더미 데이터로 동작 중 · 데이터 연동(Supabase) 연결 전 미리보기
+더미 데이터로 동작 중 · Google Sheets 연동 전 미리보기
     </div>
   );
 }

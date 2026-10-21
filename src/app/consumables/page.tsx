@@ -2,9 +2,12 @@ import { FlaskConical } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { SoftCard, SoftCardHeader } from "@/components/cards/soft-card";
 import { StatusBadge } from "@/components/badges/status-badge";
-import { CONSUMABLES } from "@/lib/dummy";
+import { getConsumables } from "@/data";
 
-export default function ConsumablesPage() {
+export const dynamic = "force-dynamic";
+
+export default async function ConsumablesPage() {
+  const CONSUMABLES = await getConsumables();
   return (
     <>
       <PageHeader title="소모품" description="연구재료·소모품 재고" icon={<FlaskConical className="h-6 w-6" />} />

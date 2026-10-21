@@ -2,9 +2,12 @@ import { ArrowLeftRight } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { SoftCard } from "@/components/cards/soft-card";
 import { StatusBadge } from "@/components/badges/status-badge";
-import { LOANS } from "@/lib/dummy";
+import { getLoans } from "@/data";
 
-export default function LoansPage() {
+export const dynamic = "force-dynamic";
+
+export default async function LoansPage() {
+  const LOANS = await getLoans();
   return (
     <>
       <PageHeader title="대여" description="노트북·자산 대여 현황" icon={<ArrowLeftRight className="h-6 w-6" />} />

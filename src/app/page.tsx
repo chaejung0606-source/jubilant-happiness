@@ -15,9 +15,15 @@ import { StatCard } from "@/components/cards/stat-card";
 import { SoftCard, SoftCardHeader } from "@/components/cards/soft-card";
 import { StatusBadge } from "@/components/badges/status-badge";
 import { Button } from "@/components/ui/button";
-import { ASSETS, CONSUMABLES, PROMO, LOANS, MONTHLY, won } from "@/lib/dummy";
+import { getAssets, getLoans, getConsumables, getPromo } from "@/data";
+import { MONTHLY, won } from "@/lib/dummy";
 
-export default function DashboardPage() {
+export const dynamic = "force-dynamic";
+
+export default async function DashboardPage() {
+  const [ASSETS, LOANS, CONSUMABLES, PROMO] = await Promise.all([
+    getAssets(), getLoans(), getConsumables(), getPromo(),
+  ]);
   const total = ASSETS.length;
   const acquisition = ASSETS.reduce((s, a) => s + a.unitPrice, 0);
   const loansOut = ASSETS.filter((a) => a.status === "대여중").length;
