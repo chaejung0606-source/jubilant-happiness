@@ -2,6 +2,7 @@ import { Settings, Database, ShieldCheck } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { SoftCard, SoftCardHeader } from "@/components/cards/soft-card";
 import { StatusBadge } from "@/components/badges/status-badge";
+import { AssetSheetSettings } from "@/components/settings/asset-sheet-settings";
 import { sheetsConfigured } from "@/data";
 
 export const dynamic = "force-dynamic";
@@ -52,6 +53,8 @@ export default function SettingsPage() {
             </li>
           </ul>
         </SoftCard>
+
+        <AssetSheetSettings />
       </div>
     </>
   );

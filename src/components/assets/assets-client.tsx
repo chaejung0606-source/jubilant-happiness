@@ -1,8 +1,9 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Boxes, Search, Plus, Download, X, Check, Loader2 } from "lucide-react";
+import { Boxes, Search, Plus, Download, X, Check, Loader2, FileSpreadsheet } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { SoftCard } from "@/components/cards/soft-card";
 import { StatusBadge } from "@/components/badges/status-badge";
@@ -11,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Field, NativeSelect } from "@/components/ui/form-controls";
 import { ASSET_STATUS_OPTIONS } from "@/data/map";
 import { createAssetAction } from "@/app/assets/actions";
+import { useAssetSheetUrl } from "@/lib/asset-sheet";
 import type { AssetRow } from "@/lib/dummy";
 import { won } from "@/lib/dummy";
 
@@ -26,6 +28,7 @@ export function AssetsClient({ initial, configured }: { initial: AssetRow[]; con
   const [form, setForm] = React.useState({ ...EMPTY });
   const [pending, setPending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const sheetUrl = useAssetSheetUrl();
 
   const rows = React.useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -73,9 +76,32 @@ export function AssetsClient({ initial, configured }: { initial: AssetRow[]; con
         actions={
           <>
             <Button variant="outline" size="sm"><Download className="h-4 w-4" /> 내보내기</Button>
+            {sheetUrl ? (
+              <Button asChild variant="outline" size="sm">
+                <a href={sheetUrl} target="_blank" rel="noopener noreferrer" title="자산 현황 구글시트를 새 탭에서 열기">
+                  <FileSpreadsheet className="h-4 w-4" /> 구글시트
+                </a>
+              </Button>
+            ) : (
+              // 비활성 버튼은 마우스 이벤트를 받지 않으므로 툴팁은 감싼 span 에 둔다.
+              <span title="설정에서 시트 주소를 입력하세요">
+                <Button variant="outline" size="sm" disabled aria-describedby={sheetUrl === null ? "sheet-url-hint" : undefined}>
+                  <FileSpreadsheet className="h-4 w-4" /> 구글시트
+                </Button>
+              </span>
+            )}
             <Button size="sm" onClick={() => setOpen((v) => !v)}>
               <Plus className="h-4 w-4" /> 자산 등록
             </Button>
+            {sheetUrl === null && (
+              <Link
+                id="sheet-url-hint"
+                href="/settings"
+                className="basis-full text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline sm:text-right"
+              >
+                설정에서 시트 주소를 입력하세요
+              </Link>
+            )}
           </>
         }
       />
