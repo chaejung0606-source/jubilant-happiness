@@ -1,6 +1,7 @@
 import {
   LayoutDashboard,
   Boxes,
+  Scale,
   ArrowLeftRight,
   FlaskConical,
   Gift,
@@ -18,6 +19,7 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "대시보드", icon: LayoutDashboard },
   { href: "/assets", label: "자산", icon: Boxes },
+  { href: "/reconcile", label: "자산 대사", icon: Scale },
   { href: "/loans", label: "대여", icon: ArrowLeftRight },
   { href: "/consumables", label: "소모품", icon: FlaskConical },
   { href: "/promo", label: "홍보물품", icon: Gift },
