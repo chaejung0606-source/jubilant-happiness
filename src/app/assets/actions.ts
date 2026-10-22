@@ -1,7 +1,13 @@
 "use server";
 
-import { createAsset, createAssetsMany, type AssetInput } from "@/data";
+import { createAsset, createAssetsMany, updateAsset, deleteAsset, type AssetInput } from "@/data";
 import { revalidatePath, revalidateTag } from "next/cache";
+
+function revalidateAssets() {
+  revalidateTag("sheets");
+  revalidatePath("/assets");
+  revalidatePath("/");
+}
 
 export async function createAssetAction(
   input: AssetInput
@@ -14,6 +20,29 @@ export async function createAssetAction(
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "저장에 실패했습니다." };
+  }
+}
+
+export async function updateAssetAction(
+  id: string,
+  input: AssetInput
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await updateAsset(id, input);
+    revalidateAssets();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "수정에 실패했습니다." };
+  }
+}
+
+export async function deleteAssetAction(id: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await deleteAsset(id);
+    revalidateAssets();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "삭제에 실패했습니다." };
   }
 }
 

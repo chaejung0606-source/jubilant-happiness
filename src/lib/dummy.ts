@@ -15,6 +15,7 @@ export interface AssetRow {
   location: string;
   unitPrice: number;
   acquiredAt: string;
+  memo?: string;
 }
 
 export const ASSETS: AssetRow[] = [

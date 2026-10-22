@@ -71,6 +71,22 @@ export async function createAsset(input: AssetInput): Promise<void> {
   await sheetWrite("assets", "append", { ...input });
 }
 
+/** 자산 1건 수정(id 기준). */
+export async function updateAsset(id: string, input: AssetInput): Promise<void> {
+  if (!sheetsConfigured()) {
+    throw new Error("시트 연동이 아직 설정되지 않았습니다.");
+  }
+  await sheetWrite("assets", "update", { id, ...input });
+}
+
+/** 자산 1건 삭제(id 기준). */
+export async function deleteAsset(id: string): Promise<void> {
+  if (!sheetsConfigured()) {
+    throw new Error("시트 연동이 아직 설정되지 않았습니다.");
+  }
+  await sheetWrite("assets", "delete", { id });
+}
+
 /** 여러 자산을 순차 추가(대사 결과 일괄 반영). 실패는 집계만 하고 계속 진행. */
 export async function createAssetsMany(
   inputs: AssetInput[]
