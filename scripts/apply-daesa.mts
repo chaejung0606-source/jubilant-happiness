@@ -18,7 +18,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { assignMgmtNos, isChaebunReady, MGMTNO_CONFIG } from "../src/lib/mgmtno.ts";
+import { assignMgmtNos, MGMTNO_CONFIG } from "../src/lib/mgmtno.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -125,7 +125,7 @@ async function sheetPost(base: string, token: string, body: Record<string, unkno
 function runChaebun(items: Asset[]) {
   const targets = items.filter((a) => a._group === "A에만 있음");
   const { assigned, skipped } = assignMgmtNos(
-    targets.map((a) => ({ key: a._schoolNo || a.itemName, location: a.location })),
+    targets.map((a) => ({ key: a._schoolNo || a.itemName, itemName: a.itemName, acquiredAt: a.acquiredAt, location: a.location })),
     MGMTNO_CONFIG,
   );
   const byKey = new Map(assigned.map((r) => [r.key, r]));
@@ -168,18 +168,19 @@ async function main() {
   let items: Asset[];
   let label: string;
   if (chaebun) {
-    if (!isChaebunReady(MGMTNO_CONFIG)) {
-      console.error("채번 설정이 비어 있어 실제 번호를 만들 수 없습니다.");
-      console.error("→ src/lib/mgmtno.ts 의 MGMTNO_CONFIG(regDate · nextSeq · buildingCodes)를 자산관리대장 Excel 값으로 채우세요.");
-      if (commit) { console.error("   (--commit 중단: 검증 안 된 번호를 시트에 쓰지 않습니다.)"); process.exit(2); }
-    }
     const { out, skipped, total } = runChaebun(parsed);
     items = out;
     label = `채번(누락 신규) ${out.length}/${total}건`;
-    if (skipped.length) {
-      console.log(`채번 보류 ${skipped.length}건(위치 코드 매핑 필요):`);
-      for (const s of skipped.slice(0, 20)) console.log(`  - ${s.key} @ ${s.location} — ${s.reason}`);
+    if (out.length) {
+      console.log("생성된 관리번호:");
+      for (const a of out) console.log(`  ${a.mgmtNo}  ${a.itemName}`);
     }
+    if (skipped.length) {
+      console.log(`\n채번 보류 ${skipped.length}건(분류코드 등 미확인 — 시트에 쓰지 않음):`);
+      for (const s of skipped.slice(0, 20)) console.log(`  - ${s.key} — ${s.reason}`);
+      console.log("  → src/lib/mgmtno.ts 의 CATEGORY_CODES 에 해당 품명 분류코드를 넣으면 채번됩니다.");
+    }
+    if (commit) console.log("\n주의: 생성 번호는 반드시 자산관리대장 Excel O열 수식 결과와 일치하는지 확인 후 반영하세요.");
   } else {
     items = parsed.filter((a) => a.mgmtNo);
     if (all) {
