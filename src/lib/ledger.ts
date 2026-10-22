@@ -10,7 +10,7 @@ export interface Draft {
   detail: string;  // 세부 (읽기전용)
   mgmtNo: string;  // 자산번호 or 지출문서
   itemName: string;
-  rfid: string;
+  tagNo: string;   // 자산태그번호 (대사 파일의 RFID 열)
   spec: string;
   acquiredAt: string;
   unitPrice: string; // 편집 위해 문자열
@@ -49,7 +49,7 @@ export function draftsFromDaesa(table: Table): Draft[] {
       detail,
       mgmtNo: pick(r, "A 자산번호", "B 지출문서", "자산번호", "지출문서"),
       itemName: pick(r, "A 품명", "B 품명", "품명"),
-      rfid: pick(r, "A RFID", "B RFID", "RFID"),
+      tagNo: pick(r, "A RFID", "B RFID", "RFID", "태그번호", "자산태그번호"),
       spec: pick(r, "A 품목명", "B 규격", "품목명", "규격"),
       acquiredAt: pick(r, "A 취득일", "B 취득일", "취득일"),
       unitPrice: pick(r, "A 단가", "B 단가", "단가"),
@@ -69,7 +69,7 @@ export function draftToAssetInput(d: Draft): AssetInput {
   ].filter(Boolean).join(" / ");
   return {
     mgmtNo: d.mgmtNo,
-    rfid: d.rfid,
+    tagNo: d.tagNo,
     spec: d.spec,
     itemName: d.itemName,
     category: "",
@@ -83,12 +83,12 @@ export function draftToAssetInput(d: Draft): AssetInput {
 }
 
 export const LEDGER_CSV_HEADERS = [
-  "자산번호", "품명", "RFID", "규격", "취득일", "단가", "위치", "사용자", "상태", "구분", "세부", "메모",
+  "자산번호", "품명", "태그번호", "규격", "취득일", "단가", "위치", "사용자", "상태", "구분", "세부", "메모",
 ];
 
 export function draftToCsvRow(d: Draft): Record<string, string> {
   return {
-    자산번호: d.mgmtNo, 품명: d.itemName, RFID: d.rfid, 규격: d.spec,
+    자산번호: d.mgmtNo, 품명: d.itemName, 태그번호: d.tagNo, 규격: d.spec,
     취득일: d.acquiredAt, 단가: d.unitPrice, 위치: d.location, 사용자: d.user,
     상태: d.status, 구분: d.group, 세부: d.detail, 메모: d.note,
   };

@@ -132,7 +132,7 @@ export function ResultApply() {
                 <tr className="text-left text-xs text-muted-foreground">
                   <th className="px-2 py-2 font-medium">반영</th>
                   <th className="px-2 py-2 font-medium">품명</th>
-                  <th className="px-2 py-2 font-medium">RFID</th>
+                  <th className="px-2 py-2 font-medium">태그번호</th>
                   <th className="px-2 py-2 font-medium">단가</th>
                   <th className="px-2 py-2 font-medium">취득일</th>
                   <th className="px-2 py-2 font-medium">위치</th>
@@ -158,7 +158,7 @@ export function ResultApply() {
                             className="h-4 w-4 accent-[color:var(--primary,#5f8f79)]" />
                         </td>
                         <td className="px-2 py-1.5 min-w-[160px]"><input className={cell} value={d.itemName} onChange={(e) => update(d.id, { itemName: e.target.value })} /></td>
-                        <td className="px-2 py-1.5"><input className={`${cell} font-mono`} value={d.rfid} onChange={(e) => update(d.id, { rfid: e.target.value })} /></td>
+                        <td className="px-2 py-1.5"><input className={`${cell} font-mono`} value={d.tagNo} onChange={(e) => update(d.id, { tagNo: e.target.value })} /></td>
                         <td className="px-2 py-1.5"><input className={`${cell} text-right tabular-nums`} value={d.unitPrice} onChange={(e) => update(d.id, { unitPrice: e.target.value })} title={won(d.unitPrice)} /></td>
                         <td className="px-2 py-1.5"><input className={cell} value={d.acquiredAt} onChange={(e) => update(d.id, { acquiredAt: e.target.value })} /></td>
                         <td className="px-2 py-1.5 min-w-[140px]"><input className={cell} value={d.location} onChange={(e) => update(d.id, { location: e.target.value })} /></td>
@@ -186,7 +186,7 @@ export function ResultApply() {
         <StepCard n={3} title="관리대장에 반영" done={!!result && result.fail === 0}>
           <p className="mb-3 text-sm text-muted-foreground">
             ‘반영’에 체크한 <b className="text-foreground">{included.length}건</b>을 관리대장(앱 자산 시트)에 등록합니다.
-            RFID·규격·구분은 메모에 함께 저장됩니다. 교정본을 파일로도 받을 수 있어요.
+태그번호·규격은 전용 열로, 구분·메모는 메모 열에 저장됩니다. 교정본을 파일로도 받을 수 있어요.
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <Button onClick={apply} disabled={busy || included.length === 0}>

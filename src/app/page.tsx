@@ -54,7 +54,7 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4">
         <StatCard label="총 자산" value={`${total}건`} sub="등록된 전체 자산" icon={Boxes} tone="mint" />
         <StatCard label="취득 총액" value={won(acquisition)} sub="누적 취득가" icon={Coins} tone="cream" />
-        <StatCard label="RFID 미등록" value={`${rfidMissing}건`} sub="태그 확인 필요" icon={ScanLine} tone="apricot" />
+        <StatCard label="태그번호 미등록" value={`${rfidMissing}건`} sub="태그 확인 필요" icon={ScanLine} tone="apricot" />
         <StatCard label="대여중" value={`${loansOut}건`} sub="현재 외부/직원 대여" icon={ArrowLeftRight} tone="sky" />
         <StatCard label="점검·수리" value={`${needsInspection}건`} sub="조치 필요" icon={Wrench} tone="coral" />
         <StatCard label="이번달 신규" value={`${newThisMonth}건`} sub="10월 등록" icon={Sparkles} tone="purple" trend={{ value: "지난달 대비 +1", up: true }} />

@@ -51,7 +51,7 @@ export async function getPromo(): Promise<PromoRow[]> {
 
 export interface AssetInput {
   mgmtNo: string;
-  rfid?: string;
+  tagNo?: string;
   spec?: string;
   itemName: string;
   category: string;

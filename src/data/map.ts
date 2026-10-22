@@ -36,7 +36,7 @@ export function toAssetRow(r: Raw): AssetRow {
   return {
     id: s(r.id) || undefined,
     mgmtNo: s(r.mgmtNo),
-    rfid: s(r.rfid),
+    tagNo: s(r.tagNo),
     spec: s(r.spec),
     itemName: s(r.itemName),
     category: s(r.category),

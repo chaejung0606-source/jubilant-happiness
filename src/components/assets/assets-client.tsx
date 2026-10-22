@@ -15,7 +15,7 @@ import type { AssetRow } from "@/lib/dummy";
 import { won } from "@/lib/dummy";
 
 const EMPTY = {
-  mgmtNo: "", rfid: "", spec: "", itemName: "", category: "", status: "정상",
+  mgmtNo: "", tagNo: "", spec: "", itemName: "", category: "", status: "정상",
   user: "", location: "", unitPrice: "", acquiredAt: "",
 };
 
@@ -31,7 +31,7 @@ export function AssetsClient({ initial, configured }: { initial: AssetRow[]; con
     const term = q.trim().toLowerCase();
     if (!term) return initial;
     return initial.filter((a) =>
-      [a.mgmtNo, a.rfid ?? "", a.itemName, a.spec ?? "", a.category, a.user ?? "", a.location, a.status]
+      [a.mgmtNo, a.tagNo ?? "", a.itemName, a.spec ?? "", a.category, a.user ?? "", a.location, a.status]
         .join(" ").toLowerCase().includes(term)
     );
   }, [q, initial]);
@@ -46,7 +46,7 @@ export function AssetsClient({ initial, configured }: { initial: AssetRow[]; con
     setPending(true);
     const res = await createAssetAction({
       mgmtNo: form.mgmtNo.trim(),
-      rfid: form.rfid.trim(),
+      tagNo: form.tagNo.trim(),
       spec: form.spec.trim(),
       itemName: form.itemName.trim(),
       category: form.category.trim(),
@@ -101,7 +101,7 @@ export function AssetsClient({ initial, configured }: { initial: AssetRow[]; con
 
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <Field label="관리번호(자산번호)" required><Input value={form.mgmtNo} onChange={(e) => set("mgmtNo", e.target.value)} placeholder="Z0108… / 501-0016" required /></Field>
-              <Field label="RFID"><Input value={form.rfid} onChange={(e) => set("rfid", e.target.value)} placeholder="KKR-PB-…" /></Field>
+              <Field label="자산태그번호"><Input value={form.tagNo} onChange={(e) => set("tagNo", e.target.value)} placeholder="KKR-PB-… (번호로 관리)" /></Field>
               <Field label="품명" required><Input value={form.itemName} onChange={(e) => set("itemName", e.target.value)} placeholder="노트북컴퓨터" required /></Field>
               <Field label="규격"><Input value={form.spec} onChange={(e) => set("spec", e.target.value)} placeholder="엘지전자 15ZG90S-…" /></Field>
               <Field label="분류"><Input value={form.category} onChange={(e) => set("category", e.target.value)} placeholder="전산기기" /></Field>
@@ -131,7 +131,7 @@ export function AssetsClient({ initial, configured }: { initial: AssetRow[]; con
       <div className="mb-4 flex items-center gap-2">
         <div className="relative w-full max-w-sm">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="관리번호·RFID·품명·규격·사용자 검색" className="pl-9" />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="관리번호·태그번호·품명·규격 검색" className="pl-9" />
         </div>
         <span className="whitespace-nowrap text-sm text-muted-foreground">{rows.length}건</span>
       </div>
@@ -142,7 +142,7 @@ export function AssetsClient({ initial, configured }: { initial: AssetRow[]; con
             <thead>
               <tr className="border-b border-black/[0.06] text-left text-xs text-muted-foreground">
                 <th className="px-5 py-3 font-medium">관리번호</th>
-                <th className="px-5 py-3 font-medium">RFID</th>
+                <th className="px-5 py-3 font-medium">태그번호</th>
                 <th className="px-5 py-3 font-medium">품명</th>
                 <th className="px-5 py-3 font-medium">규격</th>
                 <th className="px-5 py-3 font-medium">분류</th>
@@ -157,7 +157,7 @@ export function AssetsClient({ initial, configured }: { initial: AssetRow[]; con
               {rows.map((a, i) => (
                 <tr key={a.id ?? a.mgmtNo + i} className="border-b border-black/[0.04] transition-colors hover:bg-accent/60">
                   <td className="whitespace-nowrap px-5 py-3 font-mono text-[13px] text-foreground/80">{a.mgmtNo}</td>
-                  <td className="whitespace-nowrap px-5 py-3 font-mono text-[12px] text-muted-foreground">{a.rfid || "—"}</td>
+                  <td className="whitespace-nowrap px-5 py-3 font-mono text-[12px] text-muted-foreground">{a.tagNo || "—"}</td>
                   <td className="px-5 py-3 font-medium text-foreground">{a.itemName}</td>
                   <td className="max-w-[220px] truncate px-5 py-3 text-muted-foreground" title={a.spec || ""}>{a.spec || "—"}</td>
                   <td className="whitespace-nowrap px-5 py-3 text-muted-foreground">{a.category}</td>
