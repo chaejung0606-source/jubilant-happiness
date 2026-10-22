@@ -4,6 +4,10 @@
 //   node --experimental-strip-types scripts/apply-daesa.mts <결과CSV> [옵션]
 //   npm run apply:daesa -- <결과CSV> [옵션]
 //
+// 입력 형식은 자동 판별한다:
+//   • '관리번호' 열이 있으면 → 완성 대장 행으로 보고 그대로 추가/갱신(관리번호 = 키)
+//   • '구분/세부' 열이 있으면 → 대사 결과로 보고 아래 옵션 적용
+//
 // 옵션:
 //   (기본)           자산번호가 있는 등재 자산만(보류 제외) — 겹침 없는 완전한 대장
 //   --actionable     조치 필요 항목만(누락/미확인/불일치/오기)
@@ -103,6 +107,33 @@ function toAsset(r: Record<string, string>, reason: string): Asset {
   };
 }
 
+// 완성된 대장 행 CSV(관리번호 열이 이미 있는 경우) → Asset. 추측 없이 그대로 매핑.
+function toLedgerAsset(r: Record<string, string>, reason: string): Asset {
+  const loc = [pick(r, "장소"), pick(r, "호실")].filter(Boolean).join(" ");
+  const schoolNo = pick(r, "자산번호");
+  const org = pick(r, "관리기관");
+  return {
+    mgmtNo: pick(r, "관리번호"),
+    tagNo: pick(r, "RFID", "태그번호", "자산태그번호"),
+    itemName: pick(r, "품명"),
+    spec: pick(r, "규격", "품목명"),
+    category: pick(r, "중분류", "대분류"),
+    status: "정상",
+    user: pick(r, "사용처", "사용자"),
+    location: loc,
+    unitPrice: Number(pick(r, "취득단가", "단가").replace(/[^\d.-]/g, "")) || 0,
+    acquiredAt: pick(r, "취득일"),
+    memo: [schoolNo && `학교자산번호 ${schoolNo}`, org && `관리기관 ${org}`].filter(Boolean).join(" / "),
+    editReason: reason || "",
+    editDetail: "",
+    editedAt: reason ? new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10) : "",
+    _detail: "",
+    _group: "",
+    _hasAssetNo: !!schoolNo,
+    _schoolNo: schoolNo,
+  };
+}
+
 async function sheetGet(base: string, token: string, tab: string) {
   const res = await fetch(`${base}?token=${encodeURIComponent(token)}&tab=${encodeURIComponent(tab)}`);
   if (!res.ok) throw new Error(`GET ${tab} HTTP ${res.status}`);
@@ -156,18 +187,21 @@ async function main() {
 
   if (!file) { console.error("사용: npm run apply:daesa -- <결과CSV> [--chaebun --commit --all --update --reason \"사유\"]"); process.exit(1); }
 
-  const env = loadEnv();
-  const base = env.SHEETS_API_URL, token = env.SHEETS_API_TOKEN;
-  if (!base || !token) { console.error("SHEETS_API_URL / SHEETS_API_TOKEN 가 필요합니다 (.env.local 또는 환경변수)."); process.exit(1); }
-
   const { headers, rows } = parseTable(readCsv(file));
-  if (!headers.includes("구분")) { console.error("대사 결과 형식이 아닙니다(구분/세부 열 필요)."); process.exit(1); }
+  const ledgerMode = headers.includes("관리번호");
+  if (!ledgerMode && !headers.includes("구분")) {
+    console.error("형식을 알 수 없습니다. 대사 결과(구분/세부 열) 또는 완성 대장(관리번호 열) CSV가 필요합니다.");
+    process.exit(1);
+  }
 
-  const parsed = rows.map((r) => toAsset(r, reason));
+  const parsed = rows.map((r) => (ledgerMode ? toLedgerAsset(r, reason) : toAsset(r, reason)));
 
   let items: Asset[];
   let label: string;
-  if (chaebun) {
+  if (ledgerMode) {
+    items = parsed.filter((a) => a.mgmtNo);
+    label = "완성 대장 행(관리번호 포함)";
+  } else if (chaebun) {
     const { out, skipped, total } = runChaebun(parsed);
     items = out;
     label = `채번(누락 신규) ${out.length}/${total}건`;
@@ -195,6 +229,15 @@ async function main() {
   }
 
   console.log(`대상: ${items.length}건 (${label})  모드: ${commit ? "반영(commit)" : "미리보기(dry-run)"}`);
+
+  const env = loadEnv();
+  const base = env.SHEETS_API_URL, token = env.SHEETS_API_TOKEN;
+  if (!base || !token) {
+    if (commit) { console.error("\nSHEETS_API_URL / SHEETS_API_TOKEN 가 필요합니다 (.env.local 또는 환경변수)."); process.exit(1); }
+    console.log("\n(자격증명 없음 — 매핑 미리보기만. 실제 반영은 .env.local 있는 환경에서 --commit)");
+    if (ledgerMode) for (const a of items) console.log(`  + ${a.mgmtNo}  ${a.itemName} · ${a.location} · ${a.unitPrice.toLocaleString()}원 · ${a.memo}`);
+    return;
+  }
 
   const existing = await sheetGet(base, token, "assets");
   const idByKey = new Map(existing.map((e) => [String(e.mgmtNo || "").trim(), String(e.id || "")]).filter(([k]) => k));
