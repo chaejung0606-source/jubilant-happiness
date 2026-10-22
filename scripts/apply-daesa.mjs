@@ -5,8 +5,10 @@
 //   npm run apply:daesa -- <결과CSV> [옵션]
 //
 // 옵션:
+//   (기본)           자산번호가 있는 등재 자산만(보류 제외) — 겹침 없는 완전한 대장
+//   --actionable     조치 필요 항목만(누락/미확인/불일치/오기)
+//   --all            일치/참고/보류까지 전부
 //   --commit         실제 반영(없으면 미리보기 dry-run)
-//   --all            일치/참고/보류까지 전부(기본: 조치 필요만 = 누락/미확인/불일치/오기)
 //   --update         이미 있는 자산번호도 덮어씀(기본: 건너뜀)
 //   --reason "사유"  수정사유 일괄 지정
 //
@@ -65,8 +67,9 @@ const isActionable = (detail) => /누락|미확인|불일치|오기/.test(detail
 
 function toAsset(r, reason) {
   const group = pick(r, "구분"), detail = pick(r, "세부");
+  const assetNo = pick(r, "A 자산번호", "자산번호");
   return {
-    mgmtNo: pick(r, "A 자산번호", "B 지출문서", "자산번호", "지출문서"),
+    mgmtNo: assetNo || pick(r, "B 지출문서", "지출문서"),
     tagNo: pick(r, "A RFID", "B RFID", "RFID", "태그번호", "자산태그번호"),
     itemName: pick(r, "A 품명", "B 품명", "품명"),
     spec: pick(r, "A 품목명", "B 규격", "품목명", "규격"),
@@ -81,6 +84,8 @@ function toAsset(r, reason) {
     editDetail: "",
     editedAt: reason ? new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10) : "",
     _detail: detail,
+    _group: group,
+    _hasAssetNo: !!assetNo,
   };
 }
 
@@ -106,6 +111,7 @@ async function main() {
   const file = args.find((a) => !a.startsWith("--"));
   const commit = args.includes("--commit");
   const all = args.includes("--all");
+  const actionable = args.includes("--actionable");
   const update = args.includes("--update");
   const ri = args.indexOf("--reason");
   const reason = ri >= 0 ? args[ri + 1] : "";
@@ -120,16 +126,27 @@ async function main() {
   if (!headers.includes("구분")) { console.error("대사 결과 형식이 아닙니다(구분/세부 열 필요)."); process.exit(1); }
 
   let items = rows.map((r) => toAsset(r, reason)).filter((a) => a.mgmtNo);
-  if (!all) items = items.filter((a) => isActionable(a._detail));
+  let label;
+  if (all) {
+    label = "전체";
+  } else if (actionable) {
+    items = items.filter((a) => isActionable(a._detail));
+    label = "조치 필요만";
+  } else {
+    // 기본: 자산번호가 있는 등재 자산(겹침 없음), 보류 제외
+    items = items.filter((a) => a._hasAssetNo && a._group !== "보류");
+    label = "등재자산(자산번호 있음)";
+  }
 
-  console.log(`대상: ${items.length}건 (${all ? "전체" : "조치 필요만"})  모드: ${commit ? "반영(commit)" : "미리보기(dry-run)"}`);
+  console.log(`대상: ${items.length}건 (${label})  모드: ${commit ? "반영(commit)" : "미리보기(dry-run)"}`);
 
   const existing = await sheetGet(base, token, "assets");
   const idByKey = new Map(existing.map((e) => [String(e.mgmtNo || "").trim(), String(e.id || "")]).filter(([k]) => k));
 
   let appended = 0, updated = 0, skipped = 0, failed = 0;
   for (const a of items) {
-    const { _detail, ...payload } = a;
+    const { _detail, _group, _hasAssetNo, ...payload } = a;
+    void _detail; void _group; void _hasAssetNo;
     const id = idByKey.get(a.mgmtNo.trim());
     try {
       if (id) {
