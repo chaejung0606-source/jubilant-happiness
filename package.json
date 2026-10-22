@@ -11,7 +11,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "smoke": "node scripts/smoke.mjs",
-    "qa": "npm run lint && npm run typecheck && npm run build && npm run smoke"
+    "qa": "npm run lint && npm run typecheck && npm run build && npm run smoke",
+    "apply:daesa": "node scripts/apply-daesa.mjs"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.1",
