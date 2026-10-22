@@ -1,13 +1,15 @@
 // 로컬 세션에서 만든 자산대사 결과 CSV를 자산관리 사이트(Google Sheets)에 반영.
 //
 // 사용:
-//   node scripts/apply-daesa.mjs <결과CSV> [옵션]
+//   node --experimental-strip-types scripts/apply-daesa.mts <결과CSV> [옵션]
 //   npm run apply:daesa -- <결과CSV> [옵션]
 //
 // 옵션:
 //   (기본)           자산번호가 있는 등재 자산만(보류 제외) — 겹침 없는 완전한 대장
 //   --actionable     조치 필요 항목만(누락/미확인/불일치/오기)
 //   --all            일치/참고/보류까지 전부
+//   --chaebun        'A에만 있음'(정리본 누락) 신규 항목에 사업단 관리번호를 채번해 추가
+//                    ※ src/lib/mgmtno.ts 의 MGMTNO_CONFIG 가 채워져야 실제 반영 가능
 //   --commit         실제 반영(없으면 미리보기 dry-run)
 //   --update         이미 있는 자산번호도 덮어씀(기본: 건너뜀)
 //   --reason "사유"  수정사유 일괄 지정
@@ -15,9 +17,13 @@
 // 환경변수(.env.local 또는 셸): SHEETS_API_URL, SHEETS_API_TOKEN (사이트와 동일)
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { assignMgmtNos, isChaebunReady, MGMTNO_CONFIG } from "../src/lib/mgmtno.ts";
+
+const here = path.dirname(fileURLToPath(import.meta.url));
 
 function loadEnv() {
-  const env = { ...process.env };
+  const env: Record<string, string> = { ...process.env } as Record<string, string>;
   try {
     const txt = readFileSync(path.join(process.cwd(), ".env.local"), "utf-8");
     for (const line of txt.split(/\r?\n/)) {
@@ -28,7 +34,7 @@ function loadEnv() {
   return env;
 }
 
-function readCsv(file) {
+function readCsv(file: string) {
   const buf = readFileSync(file);
   let txt = new TextDecoder("utf-8").decode(buf);
   if ((txt.match(/�/g) || []).length > 2) {
@@ -37,13 +43,13 @@ function readCsv(file) {
   return txt.replace(/^﻿/, "");
 }
 
-function parseTable(text) {
+function parseTable(text: string) {
   const s = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
-  if (!s) return { headers: [], rows: [] };
+  if (!s) return { headers: [] as string[], rows: [] as Record<string, string>[] };
   const first = s.split("\n", 1)[0] ?? "";
   const d = (first.match(/\t/g) || []).length >= (first.match(/,/g) || []).length ? "\t" : ",";
-  const matrix = [];
-  let row = [], field = "", q = false;
+  const matrix: string[][] = [];
+  let row: string[] = [], field = "", q = false;
   for (let i = 0; i < s.length; i++) {
     const c = s[i];
     if (q) {
@@ -62,10 +68,17 @@ function parseTable(text) {
   return { headers, rows };
 }
 
-const pick = (r, ...keys) => { for (const k of keys) { const v = (r[k] ?? "").trim(); if (v) return v; } return ""; };
-const isActionable = (detail) => /누락|미확인|불일치|오기/.test(detail);
+const pick = (r: Record<string, string>, ...keys: string[]) => { for (const k of keys) { const v = (r[k] ?? "").trim(); if (v) return v; } return ""; };
+const isActionable = (detail: string) => /누락|미확인|불일치|오기/.test(detail);
 
-function toAsset(r, reason) {
+interface Asset {
+  mgmtNo: string; tagNo: string; itemName: string; spec: string; category: string;
+  status: string; user: string; location: string; unitPrice: number; acquiredAt: string;
+  memo: string; editReason: string; editDetail: string; editedAt: string;
+  _detail: string; _group: string; _hasAssetNo: boolean; _schoolNo: string;
+}
+
+function toAsset(r: Record<string, string>, reason: string): Asset {
   const group = pick(r, "구분"), detail = pick(r, "세부");
   const assetNo = pick(r, "A 자산번호", "자산번호");
   return {
@@ -86,17 +99,18 @@ function toAsset(r, reason) {
     _detail: detail,
     _group: group,
     _hasAssetNo: !!assetNo,
+    _schoolNo: assetNo,
   };
 }
 
-async function sheetGet(base, token, tab) {
+async function sheetGet(base: string, token: string, tab: string) {
   const res = await fetch(`${base}?token=${encodeURIComponent(token)}&tab=${encodeURIComponent(tab)}`);
   if (!res.ok) throw new Error(`GET ${tab} HTTP ${res.status}`);
   const data = await res.json();
   if (!Array.isArray(data)) throw new Error(data?.error || "시트 응답 오류");
-  return data;
+  return data as Record<string, string>[];
 }
-async function sheetPost(base, token, body) {
+async function sheetPost(base: string, token: string, body: Record<string, unknown>) {
   const res = await fetch(base, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ token, ...body }),
@@ -106,17 +120,41 @@ async function sheetPost(base, token, body) {
   return data;
 }
 
+// 'A에만 있음'(정리본 누락) 신규 항목에 사업단 관리번호를 채번.
+// 기존 대장 항목은 여기에 들어오지 않는다(신규만) → 스티커 붙은 번호는 안전.
+function runChaebun(items: Asset[]) {
+  const targets = items.filter((a) => a._group === "A에만 있음");
+  const { assigned, skipped } = assignMgmtNos(
+    targets.map((a) => ({ key: a._schoolNo || a.itemName, location: a.location })),
+    MGMTNO_CONFIG,
+  );
+  const byKey = new Map(assigned.map((r) => [r.key, r]));
+  const out: Asset[] = [];
+  for (const a of targets) {
+    const r = byKey.get(a._schoolNo || a.itemName);
+    if (!r) continue;
+    out.push({
+      ...a,
+      mgmtNo: r.mgmtNo, // 새 사업단 관리번호
+      memo: [a.memo, a._schoolNo && `학교자산번호 ${a._schoolNo}`].filter(Boolean).join(" / "),
+    });
+  }
+  return { out, skipped, total: targets.length };
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const file = args.find((a) => !a.startsWith("--"));
   const commit = args.includes("--commit");
   const all = args.includes("--all");
   const actionable = args.includes("--actionable");
+  const chaebun = args.includes("--chaebun");
   const update = args.includes("--update");
   const ri = args.indexOf("--reason");
   const reason = ri >= 0 ? args[ri + 1] : "";
+  void here;
 
-  if (!file) { console.error("사용: node scripts/apply-daesa.mjs <결과CSV> [--commit --all --update --reason \"사유\"]"); process.exit(1); }
+  if (!file) { console.error("사용: npm run apply:daesa -- <결과CSV> [--chaebun --commit --all --update --reason \"사유\"]"); process.exit(1); }
 
   const env = loadEnv();
   const base = env.SHEETS_API_URL, token = env.SHEETS_API_TOKEN;
@@ -125,17 +163,34 @@ async function main() {
   const { headers, rows } = parseTable(readCsv(file));
   if (!headers.includes("구분")) { console.error("대사 결과 형식이 아닙니다(구분/세부 열 필요)."); process.exit(1); }
 
-  let items = rows.map((r) => toAsset(r, reason)).filter((a) => a.mgmtNo);
-  let label;
-  if (all) {
-    label = "전체";
-  } else if (actionable) {
-    items = items.filter((a) => isActionable(a._detail));
-    label = "조치 필요만";
+  const parsed = rows.map((r) => toAsset(r, reason));
+
+  let items: Asset[];
+  let label: string;
+  if (chaebun) {
+    if (!isChaebunReady(MGMTNO_CONFIG)) {
+      console.error("채번 설정이 비어 있어 실제 번호를 만들 수 없습니다.");
+      console.error("→ src/lib/mgmtno.ts 의 MGMTNO_CONFIG(regDate · nextSeq · buildingCodes)를 자산관리대장 Excel 값으로 채우세요.");
+      if (commit) { console.error("   (--commit 중단: 검증 안 된 번호를 시트에 쓰지 않습니다.)"); process.exit(2); }
+    }
+    const { out, skipped, total } = runChaebun(parsed);
+    items = out;
+    label = `채번(누락 신규) ${out.length}/${total}건`;
+    if (skipped.length) {
+      console.log(`채번 보류 ${skipped.length}건(위치 코드 매핑 필요):`);
+      for (const s of skipped.slice(0, 20)) console.log(`  - ${s.key} @ ${s.location} — ${s.reason}`);
+    }
   } else {
-    // 기본: 자산번호가 있는 등재 자산(겹침 없음), 보류 제외
-    items = items.filter((a) => a._hasAssetNo && a._group !== "보류");
-    label = "등재자산(자산번호 있음)";
+    items = parsed.filter((a) => a.mgmtNo);
+    if (all) {
+      label = "전체";
+    } else if (actionable) {
+      items = items.filter((a) => isActionable(a._detail));
+      label = "조치 필요만";
+    } else {
+      items = items.filter((a) => a._hasAssetNo && a._group !== "보류");
+      label = "등재자산(자산번호 있음)";
+    }
   }
 
   console.log(`대상: ${items.length}건 (${label})  모드: ${commit ? "반영(commit)" : "미리보기(dry-run)"}`);
@@ -145,8 +200,8 @@ async function main() {
 
   let appended = 0, updated = 0, skipped = 0, failed = 0;
   for (const a of items) {
-    const { _detail, _group, _hasAssetNo, ...payload } = a;
-    void _detail; void _group; void _hasAssetNo;
+    const { _detail, _group, _hasAssetNo, _schoolNo, ...payload } = a;
+    void _detail; void _group; void _hasAssetNo; void _schoolNo;
     const id = idByKey.get(a.mgmtNo.trim());
     try {
       if (id) {
@@ -159,7 +214,7 @@ async function main() {
       }
     } catch (e) {
       failed++;
-      if (failed <= 5) console.error(`  실패 ${a.mgmtNo}: ${e.message}`);
+      if (failed <= 5) console.error(`  실패 ${a.mgmtNo}: ${(e as Error).message}`);
     }
   }
 
