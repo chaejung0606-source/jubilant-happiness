@@ -13,7 +13,7 @@
  */
 
 const SCHEMA = {
-  assets:      ["id","mgmtNo","tagNo","itemName","spec","category","status","user","location","unitPrice","acquiredAt","memo","updatedAt"],
+  assets:      ["id","mgmtNo","tagNo","itemName","spec","category","status","user","location","unitPrice","acquiredAt","memo","updatedAt"," ","editedAt","editReason","editDetail"],
   loans:       ["id","mgmtNo","itemName","borrower","affiliation","phone","reason","loanedAt","dueAt","returnedAt","status","manager","updatedAt"],
   consumables: ["id","itemName","spec","unit","qty","safetyQty","location","updatedAt"],
   promo:       ["id","code","name","unit","qty","safetyQty","note","updatedAt"],

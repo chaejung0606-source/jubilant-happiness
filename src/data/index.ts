@@ -61,6 +61,10 @@ export interface AssetInput {
   unitPrice: number;
   acquiredAt: string;
   memo?: string;
+  // 대장 우측 수정기록 열
+  editedAt?: string;
+  editReason?: string;
+  editDetail?: string;
 }
 
 /** 자산 1건 추가. 시트 미설정이면 에러를 던진다(폼에서 안내). */

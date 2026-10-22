@@ -18,6 +18,7 @@ export interface Draft {
   user: string;
   status: string;
   note: string;    // 메모 (편집 가능)
+  reason: string;  // 수정사유 (편집 가능)
 }
 
 const pick = (r: Record<string, string>, ...keys: string[]) => {
@@ -57,6 +58,7 @@ export function draftsFromDaesa(table: Table): Draft[] {
       user: pick(r, "B 사용처", "사용처", "사용자"),
       status: "정상",
       note: pick(r, "메모"),
+      reason: "",
     };
   });
 }
@@ -83,13 +85,13 @@ export function draftToAssetInput(d: Draft): AssetInput {
 }
 
 export const LEDGER_CSV_HEADERS = [
-  "자산번호", "품명", "태그번호", "규격", "취득일", "단가", "위치", "사용자", "상태", "구분", "세부", "메모",
+  "자산번호", "품명", "태그번호", "규격", "취득일", "단가", "위치", "사용자", "상태", "구분", "세부", "메모", "수정사유",
 ];
 
 export function draftToCsvRow(d: Draft): Record<string, string> {
   return {
     자산번호: d.mgmtNo, 품명: d.itemName, 태그번호: d.tagNo, 규격: d.spec,
     취득일: d.acquiredAt, 단가: d.unitPrice, 위치: d.location, 사용자: d.user,
-    상태: d.status, 구분: d.group, 세부: d.detail, 메모: d.note,
+    상태: d.status, 구분: d.group, 세부: d.detail, 메모: d.note, 수정사유: d.reason,
   };
 }

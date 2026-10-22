@@ -12,6 +12,7 @@ import {
 } from "@/lib/ledger";
 import { ASSET_STATUS_OPTIONS } from "@/data/map";
 import { applyLedgerAction } from "@/app/assets/actions";
+import { diffSummary, ASSET_DIFF_FIELDS, todayKst } from "@/lib/diff";
 import type { Tone } from "@/lib/status";
 
 const cell =
@@ -25,6 +26,7 @@ export function ResultApply() {
   const [text, setText] = React.useState("");
   const [fileName, setFileName] = React.useState("");
   const [drafts, setDrafts] = React.useState<Draft[]>([]);
+  const [originals, setOriginals] = React.useState<Record<string, Draft>>({});
   const [invalid, setInvalid] = React.useState(false);
   const [onlyAction, setOnlyAction] = React.useState(true);
   const [busy, setBusy] = React.useState(false);
@@ -37,7 +39,9 @@ export function ResultApply() {
       setDrafts([]); setInvalid(!!raw.trim()); return;
     }
     setInvalid(false);
-    setDrafts(draftsFromDaesa(t));
+    const ds = draftsFromDaesa(t);
+    setDrafts(ds);
+    setOriginals(Object.fromEntries(ds.map((d) => [d.id, { ...d }])));
     setResult(null);
   }
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -70,7 +74,14 @@ export function ResultApply() {
   async function apply() {
     if (!included.length) return;
     setBusy(true); setResult(null);
-    const res = await applyLedgerAction(included.map(draftToAssetInput));
+    const inputs = included.map((d) => {
+      const base = draftToAssetInput(d);
+      const orig = originals[d.id];
+      const detail = orig ? diffSummary(orig, d, ASSET_DIFF_FIELDS) : "";
+      const reason = d.reason.trim();
+      return { ...base, editReason: reason, editDetail: detail, editedAt: (detail || reason) ? todayKst() : "" };
+    });
+    const res = await applyLedgerAction(inputs);
     setBusy(false); setResult(res);
   }
   function exportCsv() {
@@ -127,7 +138,7 @@ export function ResultApply() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[920px] border-collapse text-sm">
+            <table className="w-full min-w-[1080px] border-collapse text-sm">
               <thead>
                 <tr className="text-left text-xs text-muted-foreground">
                   <th className="px-2 py-2 font-medium">반영</th>
@@ -138,13 +149,14 @@ export function ResultApply() {
                   <th className="px-2 py-2 font-medium">위치</th>
                   <th className="px-2 py-2 font-medium">상태</th>
                   <th className="px-2 py-2 font-medium">메모</th>
+                  <th className="px-2 py-2 font-medium">수정사유</th>
                 </tr>
               </thead>
               <tbody>
                 {groups.map(([key, rows]) => (
                   <React.Fragment key={key}>
                     <tr>
-                      <td colSpan={8} className="pt-4">
+                      <td colSpan={9} className="pt-4">
                         <div className="flex items-center gap-2">
                           <StatusBadge label={key} tone={groupTone(key)} />
                           <span className="text-xs text-muted-foreground">{rows.length}건</span>
@@ -167,13 +179,14 @@ export function ResultApply() {
                             {ASSET_STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
                           </select>
                         </td>
-                        <td className="px-2 py-1.5 min-w-[200px]"><input className={cell} value={d.note} onChange={(e) => update(d.id, { note: e.target.value })} /></td>
+                        <td className="px-2 py-1.5 min-w-[180px]"><input className={cell} value={d.note} onChange={(e) => update(d.id, { note: e.target.value })} /></td>
+                        <td className="px-2 py-1.5 min-w-[180px]"><input className={cell} value={d.reason} onChange={(e) => update(d.id, { reason: e.target.value })} placeholder="수정 시 사유" /></td>
                       </tr>
                     ))}
                   </React.Fragment>
                 ))}
                 {visible.length === 0 && (
-                  <tr><td colSpan={8} className="px-2 py-8 text-center text-muted-foreground">표시할 항목이 없습니다.</td></tr>
+                  <tr><td colSpan={9} className="px-2 py-8 text-center text-muted-foreground">표시할 항목이 없습니다.</td></tr>
                 )}
               </tbody>
             </table>
@@ -186,7 +199,7 @@ export function ResultApply() {
         <StepCard n={3} title="관리대장에 반영" done={!!result && result.fail === 0}>
           <p className="mb-3 text-sm text-muted-foreground">
             ‘반영’에 체크한 <b className="text-foreground">{included.length}건</b>을 관리대장(앱 자산 시트)에 등록합니다.
-태그번호·규격은 전용 열로, 구분·메모는 메모 열에 저장됩니다. 교정본을 파일로도 받을 수 있어요.
+태그번호·규격은 전용 열로, 구분·메모는 메모 열에 저장됩니다. 값을 수정하면 변경 전→후와 수정사유가 대장 우측 수정기록 열에 함께 남습니다. 교정본을 파일로도 받을 수 있어요.
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <Button onClick={apply} disabled={busy || included.length === 0}>

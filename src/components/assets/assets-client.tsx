@@ -12,12 +12,13 @@ import { Field, NativeSelect } from "@/components/ui/form-controls";
 import { ASSET_STATUS_OPTIONS } from "@/data/map";
 import { createAssetAction, updateAssetAction, deleteAssetAction } from "@/app/assets/actions";
 import { toCsv, downloadCsv } from "@/lib/csv";
+import { diffSummary, ASSET_DIFF_FIELDS, todayKst } from "@/lib/diff";
 import type { AssetRow } from "@/lib/dummy";
 import { won } from "@/lib/dummy";
 
 const EMPTY = {
   mgmtNo: "", tagNo: "", spec: "", itemName: "", category: "", status: "정상",
-  user: "", location: "", unitPrice: "", acquiredAt: "", memo: "",
+  user: "", location: "", unitPrice: "", acquiredAt: "", memo: "", reason: "",
 };
 type Form = typeof EMPTY;
 
@@ -25,7 +26,7 @@ function rowToForm(a: AssetRow): Form {
   return {
     mgmtNo: a.mgmtNo, tagNo: a.tagNo ?? "", spec: a.spec ?? "", itemName: a.itemName,
     category: a.category, status: a.status, user: a.user ?? "", location: a.location,
-    unitPrice: a.unitPrice ? String(a.unitPrice) : "", acquiredAt: a.acquiredAt, memo: a.memo ?? "",
+    unitPrice: a.unitPrice ? String(a.unitPrice) : "", acquiredAt: a.acquiredAt, memo: a.memo ?? "", reason: "",
   };
 }
 function formToInput(f: Form) {
@@ -45,7 +46,7 @@ export function AssetsClient({ initial, configured }: { initial: AssetRow[]; con
   const [catF, setCatF] = React.useState("전체");
 
   const [open, setOpen] = React.useState(false);
-  const [editingId, setEditingId] = React.useState<string | null>(null);
+  const [editingRow, setEditingRow] = React.useState<AssetRow | null>(null);
   const [form, setForm] = React.useState<Form>({ ...EMPTY });
   const [pending, setPending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -70,15 +71,24 @@ export function AssetsClient({ initial, configured }: { initial: AssetRow[]; con
   }, [q, statusF, catF, initial]);
 
   function set<K extends keyof Form>(k: K, v: string) { setForm((f) => ({ ...f, [k]: v })); }
-  function openCreate() { setEditingId(null); setForm({ ...EMPTY }); setError(null); setOpen(true); }
-  function openEdit(a: AssetRow) { setEditingId(a.id ?? null); setForm(rowToForm(a)); setError(null); setOpen(true); setDetail(null); }
+  function openCreate() { setEditingRow(null); setForm({ ...EMPTY }); setError(null); setOpen(true); }
+  function openEdit(a: AssetRow) { setEditingRow(a); setForm(rowToForm(a)); setError(null); setOpen(true); setDetail(null); }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault(); setError(null); setPending(true);
     const input = formToInput(form);
-    const res = editingId ? await updateAssetAction(editingId, input) : await createAssetAction(input);
+    let res;
+    if (editingRow?.id) {
+      const detail = diffSummary(formToInput(rowToForm(editingRow)), input, ASSET_DIFF_FIELDS);
+      const reason = form.reason.trim();
+      res = await updateAssetAction(editingRow.id, {
+        ...input, editReason: reason, editDetail: detail, editedAt: (detail || reason) ? todayKst() : "",
+      });
+    } else {
+      res = await createAssetAction(input);
+    }
     setPending(false);
-    if (res.ok) { setForm({ ...EMPTY }); setOpen(false); setEditingId(null); router.refresh(); }
+    if (res.ok) { setForm({ ...EMPTY }); setOpen(false); setEditingRow(null); router.refresh(); }
     else setError(res.error ?? "저장에 실패했습니다.");
   }
 
@@ -119,7 +129,7 @@ export function AssetsClient({ initial, configured }: { initial: AssetRow[]; con
         <SoftCard className="mb-4">
           <form onSubmit={submit}>
             <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-base font-semibold text-foreground">{editingId ? "자산 수정" : "새 자산 등록"}</h3>
+              <h3 className="text-base font-semibold text-foreground">{editingRow ? "자산 수정" : "새 자산 등록"}</h3>
               <button type="button" onClick={() => setOpen(false)} aria-label="닫기"
                 className="grid h-8 w-8 place-items-center rounded-xl text-muted-foreground hover:bg-accent">
                 <X className="h-4 w-4" />
@@ -148,11 +158,16 @@ export function AssetsClient({ initial, configured }: { initial: AssetRow[]; con
               <Field label="메모" className="sm:col-span-2 lg:col-span-3">
                 <Input value={form.memo} onChange={(e) => set("memo", e.target.value)} placeholder="비고" />
               </Field>
+              {editingRow && (
+                <Field label="수정사유" className="sm:col-span-2 lg:col-span-3">
+                  <Input value={form.reason} onChange={(e) => set("reason", e.target.value)} placeholder="무엇을 왜 고쳤는지 (변경 전→후는 자동 기록)" />
+                </Field>
+              )}
             </div>
             {error && <p className="mt-3 text-sm text-pastel-coralInk">{error}</p>}
             <div className="mt-4 flex items-center gap-2">
               <Button type="submit" size="sm" disabled={pending}>
-                {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} {editingId ? "수정 저장" : "저장"}
+                {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} {editingRow ? "수정 저장" : "저장"}
               </Button>
               <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>취소</Button>
             </div>
@@ -203,6 +218,7 @@ export function AssetsClient({ initial, configured }: { initial: AssetRow[]; con
                   <td className="whitespace-nowrap px-5 py-3 font-mono text-[12px] text-muted-foreground">{a.tagNo || "—"}</td>
                   <td className="px-5 py-3 font-medium text-foreground">
                     <button type="button" className="text-left hover:text-primary hover:underline" onClick={() => setDetail(a)}>{a.itemName}</button>
+                    {a.editReason && <span title={a.editDetail || a.editReason} className="ml-1.5 whitespace-nowrap text-[11px] text-pastel-apricotInk">✎수정</span>}
                   </td>
                   <td className="max-w-[200px] truncate px-5 py-3 text-muted-foreground" title={a.spec || ""}>{a.spec || "—"}</td>
                   <td className="px-5 py-3"><StatusBadge label={a.status} tone={a.statusTone} /></td>
@@ -256,6 +272,13 @@ function DetailModal({ a, onClose, onEdit }: { a: AssetRow; onClose: () => void;
     ["사용자", a.user ?? "—"], ["장소", a.location || "—"], ["취득단가", won(a.unitPrice)], ["취득일", a.acquiredAt || "—"],
     ["메모", a.memo || "—"],
   ];
+  if (a.editReason || a.editDetail || a.editedAt) {
+    rows.push(
+      ["수정일", a.editedAt || "—"],
+      ["수정사유", a.editReason || "—"],
+      ["변경내역", a.editDetail || "—"],
+    );
+  }
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center" role="dialog" aria-modal="true">
       <button type="button" aria-label="닫기" onClick={onClose} className="absolute inset-0 bg-black/30 backdrop-blur-sm" />

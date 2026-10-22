@@ -47,6 +47,9 @@ export function toAssetRow(r: Raw): AssetRow {
     unitPrice: num(r.unitPrice),
     acquiredAt: s(r.acquiredAt),
     memo: s(r.memo),
+    editedAt: s(r.editedAt),
+    editReason: s(r.editReason),
+    editDetail: s(r.editDetail),
   };
 }
 
