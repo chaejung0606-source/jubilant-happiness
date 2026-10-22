@@ -97,6 +97,47 @@ export function buildMgmtNo(p: MgmtNoParts): string {
   return `[${p.yeonbeon}]${yyyymmdd(p.acquiredAt)}${p.categoryCode}${p.seqInDoc}${p.buildingCode}`;
 }
 
+/** 관리번호 앞머리 [연번] 파싱. 없으면 null. */
+export function parseYeonbeon(mgmtNo: string): number | null {
+  const m = String(mgmtNo).match(/^\[(\d+)\]/);
+  return m ? Number(m[1]) : null;
+}
+
+/** 기존 관리번호들에서 다음 연번(A열) 산출 = 최대 연번 + 1. */
+export function nextYeonbeonFrom(existingMgmtNos: string[], cfg: MgmtNoConfig = MGMTNO_CONFIG): number {
+  let max = cfg.nextYeonbeon - 1;
+  for (const s of existingMgmtNos) {
+    const y = parseYeonbeon(s);
+    if (y != null && y > max) max = y;
+  }
+  return max + 1;
+}
+
+/**
+ * 웹에서 추가하는 새 자산 1건의 관리번호를 생성.
+ * - 연번: 기존 최대 +1
+ * - 번호(K): 같은 취득일+건축물코드 묶음 안의 기존 건수 +1
+ * - 분류/건축물코드를 못 찾으면 mgmtNo="" 로 두고 missing 사유를 돌려준다(보류·수기 입력).
+ */
+export function generateOneMgmtNo(
+  item: { itemName: string; acquiredAt: string; location: string },
+  existingMgmtNos: string[],
+  cfg: MgmtNoConfig = MGMTNO_CONFIG,
+): { mgmtNo: string; yeonbeon: number; missing: string[] } {
+  const yeonbeon = nextYeonbeonFrom(existingMgmtNos, cfg);
+  const buildingCode = buildingCodeFor(item.location, cfg);
+  const categoryCode = categoryCodeFor(item.itemName, cfg);
+  const day = yyyymmdd(item.acquiredAt);
+  const missing: string[] = [];
+  if (!day) missing.push("취득일");
+  if (!categoryCode) missing.push(`분류코드(${item.itemName})`);
+  if (!buildingCode) missing.push("건축물코드");
+  if (missing.length) return { mgmtNo: "", yeonbeon, missing };
+  const seqInDoc =
+    existingMgmtNos.filter((s) => s.includes(day) && s.endsWith(buildingCode)).length + 1;
+  return { mgmtNo: buildMgmtNo({ yeonbeon, acquiredAt: item.acquiredAt, categoryCode, seqInDoc, buildingCode }), yeonbeon, missing: [] };
+}
+
 export interface ChaebunInput {
   key: string;        // 식별용(학교자산번호 등)
   itemName: string;
