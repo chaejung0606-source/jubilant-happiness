@@ -4,8 +4,6 @@ import { SoftCard, SoftCardHeader } from "@/components/cards/soft-card";
 import { StatusBadge } from "@/components/badges/status-badge";
 import { getConsumables } from "@/data";
 
-export const dynamic = "force-dynamic";
-
 export default async function ConsumablesPage() {
   const CONSUMABLES = await getConsumables();
   return (

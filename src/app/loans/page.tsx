@@ -4,8 +4,6 @@ import { SoftCard } from "@/components/cards/soft-card";
 import { StatusBadge } from "@/components/badges/status-badge";
 import { getLoans } from "@/data";
 
-export const dynamic = "force-dynamic";
-
 export default async function LoansPage() {
   const LOANS = await getLoans();
   return (

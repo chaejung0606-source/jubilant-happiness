@@ -16,7 +16,9 @@ export type SheetTab = "assets" | "loans" | "consumables" | "promo";
 export async function sheetGet(tab: SheetTab): Promise<Record<string, unknown>[]> {
   if (!BASE) throw new Error("SHEETS_API_URL 미설정");
   const url = `${BASE}?token=${encodeURIComponent(TOKEN)}&tab=${encodeURIComponent(tab)}`;
-  const res = await fetch(url, { cache: "no-store" });
+  // 30초 캐시(ISR) + 'sheets' 태그 — 메뉴 이동마다 Apps Script를 재호출하지 않음.
+  // 쓰기 시 revalidateTag("sheets")로 즉시 무효화한다.
+  const res = await fetch(url, { next: { revalidate: 30, tags: ["sheets"] } });
   if (!res.ok) throw new Error(`시트 읽기 실패(${tab}): HTTP ${res.status}`);
   const data = await res.json();
   if (!Array.isArray(data)) throw new Error((data && data.error) || "시트 응답 형식 오류");

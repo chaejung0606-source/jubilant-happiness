@@ -18,8 +18,6 @@ import { Button } from "@/components/ui/button";
 import { getAssets, getLoans, getConsumables, getPromo } from "@/data";
 import { MONTHLY, won } from "@/lib/dummy";
 
-export const dynamic = "force-dynamic";
-
 export default async function DashboardPage() {
   const [ASSETS, LOANS, CONSUMABLES, PROMO] = await Promise.all([
     getAssets(), getLoans(), getConsumables(), getPromo(),

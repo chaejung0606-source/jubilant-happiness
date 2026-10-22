@@ -1,13 +1,14 @@
 "use server";
 
 import { createAsset, type AssetInput } from "@/data";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 
 export async function createAssetAction(
   input: AssetInput
 ): Promise<{ ok: boolean; error?: string }> {
   try {
     await createAsset(input);
+    revalidateTag("sheets");
     revalidatePath("/assets");
     revalidatePath("/");
     return { ok: true };

@@ -4,8 +4,6 @@ import { SoftCard, SoftCardHeader } from "@/components/cards/soft-card";
 import { StatusBadge } from "@/components/badges/status-badge";
 import { sheetsConfigured } from "@/data";
 
-export const dynamic = "force-dynamic";
-
 export default function SettingsPage() {
   const connected = sheetsConfigured();
   return (

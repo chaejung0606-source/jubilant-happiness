@@ -5,8 +5,6 @@ import { SoftCard, SoftCardHeader } from "@/components/cards/soft-card";
 import { StatusBadge } from "@/components/badges/status-badge";
 import { getPromo } from "@/data";
 
-export const dynamic = "force-dynamic";
-
 export default async function PromoPage() {
   const PROMO = await getPromo();
   const totalQty = PROMO.reduce((s, p) => s + p.qty, 0);
