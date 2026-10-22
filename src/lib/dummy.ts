@@ -5,6 +5,8 @@ import type { Tone } from "@/lib/status";
 export interface AssetRow {
   id?: string;
   mgmtNo: string;
+  rfid?: string;
+  spec?: string;
   itemName: string;
   category: string;
   status: string;

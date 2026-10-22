@@ -61,16 +61,16 @@ export function draftsFromDaesa(table: Table): Draft[] {
   });
 }
 
-/** 관리대장(assets) 입력으로 변환. RFID·규격·구분은 메모에 함께 담는다. */
+/** 관리대장(assets) 입력으로 변환. RFID·규격은 전용 열, 구분·메모는 메모 열. */
 export function draftToAssetInput(d: Draft): AssetInput {
   const memo = [
-    d.rfid && `RFID:${d.rfid}`,
-    d.spec && `규격:${d.spec}`,
     (d.group || d.detail) && `[${d.group}·${d.detail}]`,
     d.note,
   ].filter(Boolean).join(" / ");
   return {
     mgmtNo: d.mgmtNo,
+    rfid: d.rfid,
+    spec: d.spec,
     itemName: d.itemName,
     category: "",
     status: d.status || "정상",

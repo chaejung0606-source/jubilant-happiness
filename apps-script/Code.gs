@@ -13,7 +13,7 @@
  */
 
 const SCHEMA = {
-  assets:      ["id","mgmtNo","itemName","category","status","user","location","unitPrice","acquiredAt","memo","updatedAt"],
+  assets:      ["id","mgmtNo","rfid","itemName","spec","category","status","user","location","unitPrice","acquiredAt","memo","updatedAt"],
   loans:       ["id","mgmtNo","itemName","borrower","affiliation","phone","reason","loanedAt","dueAt","returnedAt","status","manager","updatedAt"],
   consumables: ["id","itemName","spec","unit","qty","safetyQty","location","updatedAt"],
   promo:       ["id","code","name","unit","qty","safetyQty","note","updatedAt"],
@@ -34,12 +34,11 @@ function sheetFor_(tab) {
   var headers = SCHEMA[tab];
   if (!headers) throw new Error("알 수 없는 탭: " + tab);
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sh = ss.getSheetByName(tab);
-  if (!sh) {
-    sh = ss.insertSheet(tab);
-    sh.getRange(1, 1, 1, headers.length).setValues([headers]);
-    sh.setFrozenRows(1);
-  } else if (sh.getLastRow() === 0) {
+  var sh = ss.getSheetByName(tab) || ss.insertSheet(tab);
+  // 데이터 행이 없으면(헤더만/빈 탭) 헤더를 스키마에 맞춰 (재)설정 → 스키마 변경 자동 반영.
+  // 데이터가 있으면 손대지 않는다(열 어긋남 방지).
+  if (sh.getLastRow() <= 1) {
+    sh.clear();
     sh.getRange(1, 1, 1, headers.length).setValues([headers]);
     sh.setFrozenRows(1);
   }
