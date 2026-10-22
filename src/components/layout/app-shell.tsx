@@ -8,7 +8,7 @@ import { NAV_ITEMS, isActive } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 
 /** 사이드바 + 모바일 드로어를 갖춘 앱 셸. 데스크톱·태블릿 공용 반응형. */
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({ children, connected = false }: { children: React.ReactNode; connected?: boolean }) {
   const pathname = usePathname();
   const [open, setOpen] = React.useState(false);
 
@@ -23,7 +23,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <aside className="sticky top-0 hidden h-screen flex-col border-r border-black/[0.06] bg-card/70 px-4 py-5 lg:flex">
         <Brand />
         <Nav pathname={pathname} />
-        <FooterNote />
+        <FooterNote connected={connected} />
       </aside>
 
       {/* ── 모바일/태블릿 상단바 ── */}
@@ -61,7 +61,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </button>
             </div>
             <Nav pathname={pathname} />
-            <FooterNote />
+            <FooterNote connected={connected} />
           </aside>
         </div>
       )}
@@ -125,10 +125,10 @@ function Nav({ pathname }: { pathname: string }) {
   );
 }
 
-function FooterNote() {
+function FooterNote({ connected }: { connected: boolean }) {
   return (
     <div className="mt-4 rounded-2xl bg-pastel-mint/60 px-3 py-2.5 text-[11px] leading-relaxed text-pastel-mintInk">
-더미 데이터로 동작 중 · Google Sheets 연동 전 미리보기
+      {connected ? "Google Sheets 연동됨 · 실데이터" : "더미 데이터로 동작 중 · 연동 전 미리보기"}
     </div>
   );
 }

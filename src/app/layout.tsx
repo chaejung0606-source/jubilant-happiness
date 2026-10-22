@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AppShell } from "@/components/layout/app-shell";
 import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register";
+import { sheetsConfigured } from "@/data";
 
 export const metadata: Metadata = {
   title: "COSS자산관리",
@@ -24,7 +25,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ko">
       <body className="min-h-screen bg-background antialiased">
-        <AppShell>{children}</AppShell>
+        <AppShell connected={sheetsConfigured()}>{children}</AppShell>
         <ServiceWorkerRegister />
       </body>
     </html>
