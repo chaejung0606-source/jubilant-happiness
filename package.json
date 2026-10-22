@@ -8,7 +8,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "smoke": "node scripts/smoke.mjs",
+    "qa": "npm run lint && npm run typecheck && npm run build && npm run smoke"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.1",
