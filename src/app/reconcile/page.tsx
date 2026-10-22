@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Field, NativeSelect } from "@/components/ui/form-controls";
 import { parseTable, readFileSmart, toCsv, downloadCsv, guessColumn, type Table } from "@/lib/csv";
 import { reconcile, type SideCols, type KeyStat } from "@/lib/reconcile";
+import { ResultApply } from "@/components/reconcile/result-apply";
 
 const KEY_RE = /지출.?문서|문서번호|지출번호|증빙|전표|결의|품의/;
 const AMT_RE = /금액|단가|가격|취득가|합계/;
@@ -20,6 +21,34 @@ const NAME_RE = /품명|품목|자산명|물품|내역|규격|품목명/;
 const won = (n: number) => "₩" + Math.round(n).toLocaleString("ko-KR");
 
 export default function ReconcilePage() {
+  const [mode, setMode] = React.useState<"compare" | "apply">("apply");
+  return (
+    <>
+      <PageHeader
+        title="자산 대사"
+        description="학교 자산 대장과 담당자 목록을 대사하고, 조치 항목을 관리대장에 반영합니다"
+        icon={<Scale className="h-6 w-6" />}
+      />
+      <div className="mb-5 inline-flex rounded-2xl bg-card p-1 shadow-soft ring-1 ring-black/[0.06]">
+        {([["apply", "결과 반영 · 관리대장"], ["compare", "파일 비교 · 대사"]] as const).map(([v, label]) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => setMode(v)}
+            className={`rounded-xl px-4 py-2 text-sm font-medium transition-colors ${
+              mode === v ? "bg-primary text-primary-foreground shadow-pill" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {mode === "apply" ? <ResultApply /> : <CompareTool />}
+    </>
+  );
+}
+
+function CompareTool() {
   const [erpText, setErpText] = React.useState("");
   const [listText, setListText] = React.useState("");
   const [erpCols, setErpCols] = React.useState<SideCols>({ key: "" });
@@ -39,12 +68,6 @@ export default function ReconcilePage() {
 
   return (
     <>
-      <PageHeader
-        title="자산 대사"
-        description="ERP 구매내역 ↔ 담당자 자산목록을 지출문서번호로 비교·분석"
-        icon={<Scale className="h-6 w-6" />}
-      />
-
       <div className="grid gap-4 lg:grid-cols-2">
         <SourcePanel label="ERP 구매내역" sub="ERP에서 내보낸 엑셀/CSV, 또는 표 복사→붙여넣기" tone="sky"
           text={erpText} onText={setErpText} table={erpTable} />

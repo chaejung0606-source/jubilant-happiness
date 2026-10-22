@@ -58,6 +58,7 @@ export interface AssetInput {
   location: string;
   unitPrice: number;
   acquiredAt: string;
+  memo?: string;
 }
 
 /** 자산 1건 추가. 시트 미설정이면 에러를 던진다(폼에서 안내). */
@@ -66,4 +67,26 @@ export async function createAsset(input: AssetInput): Promise<void> {
     throw new Error("시트 연동이 아직 설정되지 않았습니다. 설정 > 데이터 연동을 참고하세요.");
   }
   await sheetWrite("assets", "append", { ...input });
+}
+
+/** 여러 자산을 순차 추가(대사 결과 일괄 반영). 실패는 집계만 하고 계속 진행. */
+export async function createAssetsMany(
+  inputs: AssetInput[]
+): Promise<{ ok: number; fail: number; errors: string[] }> {
+  if (!sheetsConfigured()) {
+    throw new Error("시트 연동이 아직 설정되지 않았습니다. 설정 > 데이터 연동을 참고하세요.");
+  }
+  let ok = 0;
+  let fail = 0;
+  const errors: string[] = [];
+  for (const inp of inputs) {
+    try {
+      await sheetWrite("assets", "append", { ...inp });
+      ok++;
+    } catch (e) {
+      fail++;
+      if (errors.length < 5) errors.push(e instanceof Error ? e.message : String(e));
+    }
+  }
+  return { ok, fail, errors };
 }
