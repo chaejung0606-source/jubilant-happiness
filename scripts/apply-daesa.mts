@@ -12,19 +12,14 @@
 //   (기본)           자산번호가 있는 등재 자산만(보류 제외) — 겹침 없는 완전한 대장
 //   --actionable     조치 필요 항목만(누락/미확인/불일치/오기)
 //   --all            일치/참고/보류까지 전부
-//   --chaebun        'A에만 있음'(정리본 누락) 신규 항목에 사업단 관리번호를 채번해 추가
-//                    ※ src/lib/mgmtno.ts 의 MGMTNO_CONFIG 가 채워져야 실제 반영 가능
 //   --commit         실제 반영(없으면 미리보기 dry-run)
-//   --update         이미 있는 자산번호도 덮어씀(기본: 건너뜀)
+//   --update         이미 있는 항목(관리번호/자산번호)도 덮어씀(기본: 건너뜀)
 //   --reason "사유"  수정사유 일괄 지정
 //
+// ※ 신규 자산 채번은 웹앱이 담당한다(자산 추가 시 자동). 이 CLI는 데이터 반입 전용.
 // 환경변수(.env.local 또는 셸): SHEETS_API_URL, SHEETS_API_TOKEN (사이트와 동일)
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { assignMgmtNos, MGMTNO_CONFIG } from "../src/lib/mgmtno.ts";
-
-const here = path.dirname(fileURLToPath(import.meta.url));
 
 function loadEnv() {
   const env: Record<string, string> = { ...process.env } as Record<string, string>;
@@ -151,41 +146,17 @@ async function sheetPost(base: string, token: string, body: Record<string, unkno
   return data;
 }
 
-// 'A에만 있음'(정리본 누락) 신규 항목에 사업단 관리번호를 채번.
-// 기존 대장 항목은 여기에 들어오지 않는다(신규만) → 스티커 붙은 번호는 안전.
-function runChaebun(items: Asset[]) {
-  const targets = items.filter((a) => a._group === "A에만 있음");
-  const { assigned, skipped } = assignMgmtNos(
-    targets.map((a) => ({ key: a._schoolNo || a.itemName, itemName: a.itemName, acquiredAt: a.acquiredAt, location: a.location })),
-    MGMTNO_CONFIG,
-  );
-  const byKey = new Map(assigned.map((r) => [r.key, r]));
-  const out: Asset[] = [];
-  for (const a of targets) {
-    const r = byKey.get(a._schoolNo || a.itemName);
-    if (!r) continue;
-    out.push({
-      ...a,
-      mgmtNo: r.mgmtNo, // 새 사업단 관리번호
-      memo: [a.memo, a._schoolNo && `학교자산번호 ${a._schoolNo}`].filter(Boolean).join(" / "),
-    });
-  }
-  return { out, skipped, total: targets.length };
-}
-
 async function main() {
   const args = process.argv.slice(2);
   const file = args.find((a) => !a.startsWith("--"));
   const commit = args.includes("--commit");
   const all = args.includes("--all");
   const actionable = args.includes("--actionable");
-  const chaebun = args.includes("--chaebun");
   const update = args.includes("--update");
   const ri = args.indexOf("--reason");
   const reason = ri >= 0 ? args[ri + 1] : "";
-  void here;
 
-  if (!file) { console.error("사용: npm run apply:daesa -- <결과CSV> [--chaebun --commit --all --update --reason \"사유\"]"); process.exit(1); }
+  if (!file) { console.error("사용: npm run apply:daesa -- <CSV> [--commit --all --update --reason \"사유\"]"); process.exit(1); }
 
   const { headers, rows } = parseTable(readCsv(file));
   const ledgerMode = headers.includes("관리번호");
@@ -201,20 +172,6 @@ async function main() {
   if (ledgerMode) {
     items = parsed.filter((a) => a.mgmtNo);
     label = "완성 대장 행(관리번호 포함)";
-  } else if (chaebun) {
-    const { out, skipped, total } = runChaebun(parsed);
-    items = out;
-    label = `채번(누락 신규) ${out.length}/${total}건`;
-    if (out.length) {
-      console.log("생성된 관리번호:");
-      for (const a of out) console.log(`  ${a.mgmtNo}  ${a.itemName}`);
-    }
-    if (skipped.length) {
-      console.log(`\n채번 보류 ${skipped.length}건(분류코드 등 미확인 — 시트에 쓰지 않음):`);
-      for (const s of skipped.slice(0, 20)) console.log(`  - ${s.key} — ${s.reason}`);
-      console.log("  → src/lib/mgmtno.ts 의 CATEGORY_CODES 에 해당 품명 분류코드를 넣으면 채번됩니다.");
-    }
-    if (commit) console.log("\n주의: 생성 번호는 반드시 자산관리대장 Excel O열 수식 결과와 일치하는지 확인 후 반영하세요.");
   } else {
     items = parsed.filter((a) => a.mgmtNo);
     if (all) {
@@ -235,7 +192,10 @@ async function main() {
   if (!base || !token) {
     if (commit) { console.error("\nSHEETS_API_URL / SHEETS_API_TOKEN 가 필요합니다 (.env.local 또는 환경변수)."); process.exit(1); }
     console.log("\n(자격증명 없음 — 매핑 미리보기만. 실제 반영은 .env.local 있는 환경에서 --commit)");
-    if (ledgerMode) for (const a of items) console.log(`  + ${a.mgmtNo}  ${a.itemName} · ${a.location} · ${a.unitPrice.toLocaleString()}원 · ${a.memo}`);
+    if (ledgerMode) {
+      for (const a of items.slice(0, 5)) console.log(`  + ${a.mgmtNo}  ${a.itemName} · ${a.location} · ${a.unitPrice.toLocaleString()}원`);
+      if (items.length > 5) console.log(`  … 외 ${items.length - 5}건`);
+    }
     return;
   }
 

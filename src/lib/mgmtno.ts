@@ -1,3 +1,8 @@
+// 채번 조회표(건축물코드 238·중분류 분류코드 36)는 mgmtno-tables.ts 에 분리.
+//  ※ 건축물코드는 건물 단위까지만. 호실은 location 의 호실 부분(M열)에 따로 적고 번호엔 안 들어간다.
+import { BUILDING_CODES, CATEGORY_CODES } from "./mgmtno-tables";
+export { BUILDING_CODES, CATEGORY_CODES };
+
 // 사업단 자산관리번호(관리번호) 생성 규칙.
 //
 // 자산관리대장 Excel 의 O열 "관리번호(수식)" 을 코드로 재현한다.
@@ -25,30 +30,6 @@ export function yyyymmdd(acquiredAt: string): string {
   return "";
 }
 
-// 대장에서 실제 쓰는 건축물코드(L열 장소 → N열). 로컬 세션 확인값.
-//  ※ 코드는 건물 단위까지만. 호실(이용자교육실 401-1 등)은 M열에 따로 적고 번호엔 안 들어간다.
-export const BUILDING_CODES: Record<string, string> = {
-  "집현관(제2도서관)": "B0000142",
-  "서암관(서암디지털미디어센터)": "B0000031",
-  "한빛관 및 보듬관(청정산업신기술지원센터)": "B0000038",
-  "공과대학 4호관": "B0000123",
-  "공과대학 6호관": "B0000125",
-  "공과대학 5호관": "B0000124",
-  "60주년 기념관(종합강의동)": "B0000025",
-  "미래관": "B0000047",
-  "중앙도서관": "B0000044", // 아직 대장에 자산 없음 — 누락 9건이 들어갈 자리
-};
-
-// 분류코드(F): 품명/중분류 → 코드. Excel 중분류 조회표가 원본이라 확인된 것만.
-// TODO(로컬세션 확인): 컴퓨터서버·인터랙티브화이트보드 등 미확인 품명의 분류코드.
-// 품명(중분류) → 분류코드. 로컬 세션이 대장 조회표에서 확인한 값.
-export const CATEGORY_CODES: Record<string, string> = {
-  "데스크톱컴퓨터": "501",              // 컴퓨터
-  "컴퓨터서버": "701",                  // 전산장비/서버
-  "인터랙티브화이트보드및액세서리": "506", // 기타사무장비
-  // 그 외 품명은 중분류 조회표 확인 후 추가(추측 금지).
-};
-
 export interface MgmtNoConfig {
   /** 새로 채번할 때 시작 연번(A열). 대장 마지막 연번 +1. 확인값: 906 → 907. */
   nextYeonbeon: number;
@@ -57,29 +38,38 @@ export interface MgmtNoConfig {
 }
 
 export const MGMTNO_CONFIG: MgmtNoConfig = {
-  nextYeonbeon: 907,
+  nextYeonbeon: 916, // 대장 최대 연번 915 다음(실제로는 시트 데이터에서 동적 산출)
   buildingCodes: BUILDING_CODES,
   categoryCodes: CATEGORY_CODES,
 };
 
-/** 장소 문자열 → 건축물코드. 호실/슬래시 차이를 흡수해 건물명만 매칭. */
+/**
+ * 장소 문자열 → 건축물코드. 건물명이 장소의 접두어로 일치하면 채택하되,
+ * 여러 건물이 접두어로 맞으면 **가장 긴(구체적인) 건물명**을 고른다
+ * (예: '우사비가림시설'을 '우사'로 오매칭하지 않도록).
+ */
 export function buildingCodeFor(location: string, cfg: MgmtNoConfig = MGMTNO_CONFIG): string {
   const norm = (s: string) => s.replace(/[\s/]+/g, "");
-  const target = norm(location);
-  if (cfg.buildingCodes[location.trim()]) return cfg.buildingCodes[location.trim()];
+  const loc = location.trim();
+  if (cfg.buildingCodes[loc]) return cfg.buildingCodes[loc];
+  const target = norm(loc);
+  let best = "", bestLen = -1;
   for (const [k, v] of Object.entries(cfg.buildingCodes)) {
     const nk = norm(k);
-    if (nk === target || target.startsWith(nk) || target.includes(nk)) return v;
+    if (nk && (target === nk || target.startsWith(nk)) && nk.length > bestLen) {
+      bestLen = nk.length;
+      best = v;
+    }
   }
-  return "";
+  return best;
 }
 
-/** 품명 → 분류코드. 조회표에 없으면 "" (호출부에서 채번 보류). */
-export function categoryCodeFor(itemName: string, cfg: MgmtNoConfig = MGMTNO_CONFIG): string {
-  const name = itemName.trim();
+/** 중분류 → 분류코드. 조회표에 없으면 "" (호출부에서 채번 보류). */
+export function categoryCodeFor(categoryMid: string, cfg: MgmtNoConfig = MGMTNO_CONFIG): string {
+  const name = categoryMid.trim();
   if (cfg.categoryCodes[name]) return cfg.categoryCodes[name];
   for (const [k, v] of Object.entries(cfg.categoryCodes)) {
-    if (name.includes(k)) return v;
+    if (name && name.includes(k)) return v;
   }
   return "";
 }
@@ -120,18 +110,18 @@ export function nextYeonbeonFrom(existingMgmtNos: string[], cfg: MgmtNoConfig = 
  * - 분류/건축물코드를 못 찾으면 mgmtNo="" 로 두고 missing 사유를 돌려준다(보류·수기 입력).
  */
 export function generateOneMgmtNo(
-  item: { itemName: string; acquiredAt: string; location: string },
+  item: { categoryMid: string; acquiredAt: string; location: string },
   existingMgmtNos: string[],
   cfg: MgmtNoConfig = MGMTNO_CONFIG,
 ): { mgmtNo: string; yeonbeon: number; missing: string[] } {
   const yeonbeon = nextYeonbeonFrom(existingMgmtNos, cfg);
   const buildingCode = buildingCodeFor(item.location, cfg);
-  const categoryCode = categoryCodeFor(item.itemName, cfg);
+  const categoryCode = categoryCodeFor(item.categoryMid, cfg);
   const day = yyyymmdd(item.acquiredAt);
   const missing: string[] = [];
   if (!day) missing.push("취득일");
-  if (!categoryCode) missing.push(`분류코드(${item.itemName})`);
-  if (!buildingCode) missing.push("건축물코드");
+  if (!categoryCode) missing.push(`분류코드(중분류 '${item.categoryMid}')`);
+  if (!buildingCode) missing.push(`건축물코드(장소 '${item.location}')`);
   if (missing.length) return { mgmtNo: "", yeonbeon, missing };
   const seqInDoc =
     existingMgmtNos.filter((s) => s.includes(day) && s.endsWith(buildingCode)).length + 1;

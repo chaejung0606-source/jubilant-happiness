@@ -21,7 +21,7 @@ export async function createAssetAction(
       const existing = await getAssets();
       const nos = existing.map((a) => String(a.mgmtNo || "")).filter(Boolean);
       const gen = generateOneMgmtNo(
-        { itemName: payload.itemName, acquiredAt: payload.acquiredAt, location: payload.location },
+        { categoryMid: payload.category, acquiredAt: payload.acquiredAt, location: payload.location },
         nos,
       );
       if (gen.mgmtNo) payload.mgmtNo = gen.mgmtNo;
