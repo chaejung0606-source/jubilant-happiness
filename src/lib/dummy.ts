@@ -37,19 +37,25 @@ export const ASSETS: AssetRow[] = [
 ];
 
 export interface LoanRow {
+  id?: string;
   mgmtNo: string;
   itemName: string;
   borrower: string;
   affiliation: string;
+  phone?: string;
+  reason?: string;
   loanedAt: string;
   dueAt: string;
+  returnedAt?: string;
+  status: string; // 대여중 | 연체 | 반납완료
   overdue: boolean;
 }
 
 export const LOANS: LoanRow[] = [
-  { mgmtNo: "501-0012", itemName: "Galaxy Book4 Pro", borrower: "김도윤", affiliation: "데이터보안학과", loanedAt: "2025-09-20", dueAt: "2025-10-20", overdue: false },
-  { mgmtNo: "506-0001", itemName: "휴대용 빔프로젝터", borrower: "정우성", affiliation: "산학협력단", loanedAt: "2025-09-30", dueAt: "2025-10-14", overdue: true },
-  { mgmtNo: "501-0016", itemName: "LG gram 15", borrower: "오하늘", affiliation: "융합혁신대학", loanedAt: "2025-10-06", dueAt: "2025-10-27", overdue: false },
+  { id: "L1", mgmtNo: "501-0012", itemName: "Galaxy Book4 Pro", borrower: "김도윤", affiliation: "데이터보안학과", phone: "010-1234-5678", reason: "현장 조사", loanedAt: "2025-09-20", dueAt: "2025-10-20", returnedAt: "", status: "대여중", overdue: false },
+  { id: "L2", mgmtNo: "506-0001", itemName: "휴대용 빔프로젝터", borrower: "정우성", affiliation: "산학협력단", phone: "010-2222-3333", reason: "세미나", loanedAt: "2025-09-30", dueAt: "2025-10-14", returnedAt: "", status: "연체", overdue: true },
+  { id: "L3", mgmtNo: "501-0016", itemName: "LG gram 15", borrower: "오하늘", affiliation: "융합혁신대학", phone: "", reason: "출장", loanedAt: "2025-10-06", dueAt: "2025-10-27", returnedAt: "", status: "대여중", overdue: false },
+  { id: "L4", mgmtNo: "801-0003", itemName: "캠코더 세트", borrower: "한지민", affiliation: "홍보팀", phone: "010-9999-0000", reason: "행사 촬영", loanedAt: "2025-08-11", dueAt: "2025-08-20", returnedAt: "2025-08-19", status: "반납완료", overdue: false },
 ];
 
 export interface ConsumableRow {

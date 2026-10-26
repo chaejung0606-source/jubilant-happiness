@@ -57,13 +57,20 @@ export function toLoanRow(r: Raw): LoanRow {
   const dueAt = s(r.dueAt);
   const returnedAt = s(r.returnedAt);
   const overdue = !returnedAt && !!dueAt && dueAt < todayKst();
+  const stored = s(r.status);
+  const status = returnedAt ? "반납완료" : overdue ? "연체" : stored || "대여중";
   return {
+    id: s(r.id),
     mgmtNo: s(r.mgmtNo),
     itemName: s(r.itemName),
     borrower: s(r.borrower),
     affiliation: s(r.affiliation),
+    phone: s(r.phone),
+    reason: s(r.reason),
     loanedAt: s(r.loanedAt),
     dueAt,
+    returnedAt,
+    status,
     overdue,
   };
 }

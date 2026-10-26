@@ -112,3 +112,44 @@ export async function createAssetsMany(
   }
   return { ok, fail, errors };
 }
+
+// ── 대여(loans) ───────────────────────────────────────────────
+export interface LoanInput {
+  mgmtNo: string;
+  itemName: string;
+  borrower: string;
+  affiliation?: string;
+  phone?: string;
+  reason?: string;
+  loanedAt: string;
+  dueAt: string;
+  returnedAt?: string;
+  status?: string;
+  manager?: string;
+}
+
+const LOANS_NOT_READY = "시트 연동이 아직 설정되지 않았습니다. 설정 > 데이터 연동을 참고하세요.";
+
+/** 대여 처리(새 대여 1건 추가). */
+export async function createLoan(input: LoanInput): Promise<void> {
+  if (!sheetsConfigured()) throw new Error(LOANS_NOT_READY);
+  await sheetWrite("loans", "append", { ...input, status: input.status || "대여중" });
+}
+
+/** 반납 처리(반납일 기록 + 상태 반납완료). */
+export async function returnLoan(id: string, returnedAt: string): Promise<void> {
+  if (!sheetsConfigured()) throw new Error(LOANS_NOT_READY);
+  await sheetWrite("loans", "update", { id, returnedAt, status: "반납완료" });
+}
+
+/** 대여 1건 수정(id 기준). */
+export async function updateLoan(id: string, input: LoanInput): Promise<void> {
+  if (!sheetsConfigured()) throw new Error(LOANS_NOT_READY);
+  await sheetWrite("loans", "update", { id, ...input });
+}
+
+/** 대여 1건 삭제(id 기준). */
+export async function deleteLoan(id: string): Promise<void> {
+  if (!sheetsConfigured()) throw new Error(LOANS_NOT_READY);
+  await sheetWrite("loans", "delete", { id });
+}
