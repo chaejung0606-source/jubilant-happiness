@@ -19,10 +19,10 @@ export async function createLoanAction(input: LoanInput): Promise<{ ok: boolean;
   }
 }
 
-export async function returnLoanAction(id: string, returnedAt: string): Promise<{ ok: boolean; error?: string }> {
+export async function returnLoanAction(id: string, returnedAt: string, returnBy?: string): Promise<{ ok: boolean; error?: string }> {
   try {
     if (!id) throw new Error("대여 식별자(id)가 없어 반납 처리를 할 수 없습니다.");
-    await returnLoan(id, returnedAt);
+    await returnLoan(id, returnedAt, returnBy);
     revalidateLoans();
     return { ok: true };
   } catch (e) {

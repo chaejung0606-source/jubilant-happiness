@@ -41,21 +41,25 @@ export interface LoanRow {
   mgmtNo: string;
   itemName: string;
   borrower: string;
+  idNo?: string;        // 학번/사번
   affiliation: string;
   phone?: string;
   reason?: string;
+  signature?: string;   // 대여자 서명(PNG data URL)
   loanedAt: string;
+  lendBy?: string;      // 대여 확인자
   dueAt: string;
   returnedAt?: string;
-  status: string; // 대여중 | 연체 | 반납완료
+  returnBy?: string;    // 반납 확인자
+  status: string;       // 대여중 | 연체 | 반납완료
   overdue: boolean;
 }
 
 export const LOANS: LoanRow[] = [
-  { id: "L1", mgmtNo: "501-0012", itemName: "Galaxy Book4 Pro", borrower: "김도윤", affiliation: "데이터보안학과", phone: "010-1234-5678", reason: "현장 조사", loanedAt: "2025-09-20", dueAt: "2025-10-20", returnedAt: "", status: "대여중", overdue: false },
-  { id: "L2", mgmtNo: "506-0001", itemName: "휴대용 빔프로젝터", borrower: "정우성", affiliation: "산학협력단", phone: "010-2222-3333", reason: "세미나", loanedAt: "2025-09-30", dueAt: "2025-10-14", returnedAt: "", status: "연체", overdue: true },
-  { id: "L3", mgmtNo: "501-0016", itemName: "LG gram 15", borrower: "오하늘", affiliation: "융합혁신대학", phone: "", reason: "출장", loanedAt: "2025-10-06", dueAt: "2025-10-27", returnedAt: "", status: "대여중", overdue: false },
-  { id: "L4", mgmtNo: "801-0003", itemName: "캠코더 세트", borrower: "한지민", affiliation: "홍보팀", phone: "010-9999-0000", reason: "행사 촬영", loanedAt: "2025-08-11", dueAt: "2025-08-20", returnedAt: "2025-08-19", status: "반납완료", overdue: false },
+  { id: "L1", mgmtNo: "501-0012", itemName: "Galaxy Book4 Pro", borrower: "김도윤", idNo: "202412345", affiliation: "데이터보안학과", phone: "010-1234-5678", reason: "현장 조사", loanedAt: "2026-10-10", lendBy: "관리자", dueAt: "2026-11-10", returnedAt: "", status: "대여중", overdue: false },
+  { id: "L2", mgmtNo: "506-0001", itemName: "휴대용 빔프로젝터", borrower: "정우성", idNo: "S20250012", affiliation: "산학협력단", phone: "010-2222-3333", reason: "세미나", loanedAt: "2026-09-30", lendBy: "관리자", dueAt: "2026-10-24", returnedAt: "", status: "연체", overdue: true },
+  { id: "L3", mgmtNo: "501-0016", itemName: "LG gram 15", borrower: "오하늘", idNo: "202467890", affiliation: "융합혁신대학", phone: "", reason: "출장", loanedAt: "2026-10-14", lendBy: "관리자", dueAt: "2026-10-28", returnedAt: "", status: "대여중", overdue: false },
+  { id: "L4", mgmtNo: "801-0003", itemName: "캠코더 세트", borrower: "한지민", idNo: "S20230045", affiliation: "홍보팀", phone: "010-9999-0000", reason: "행사 촬영", loanedAt: "2026-08-11", lendBy: "관리자", dueAt: "2026-08-20", returnedAt: "2026-08-19", returnBy: "관리자", status: "반납완료", overdue: false },
 ];
 
 export interface ConsumableRow {
