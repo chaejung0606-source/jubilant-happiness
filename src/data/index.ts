@@ -4,10 +4,29 @@ import {
   ASSETS, LOANS, CONSUMABLES, PROMO,
   type AssetRow, type LoanRow, type ConsumableRow, type PromoRow,
 } from "@/lib/dummy";
-import { sheetsConfigured, sheetGet, sheetWrite } from "@/server/sheets";
+import { sheetsConfigured, sheetGet, sheetWrite, sheetMeta, type SheetTab } from "@/server/sheets";
 import { toAssetRow, toLoanRow, toConsumableRow, toPromoRow } from "./map";
 
 export { sheetsConfigured };
+
+/**
+ * 연결된 구글시트의 주소(새 탭 바로가기용). tab 을 주면 그 탭(#gid)으로 바로 연다.
+ * 미설정·구버전 Code.gs·읽기 실패면 null — 화면은 설정 > 데이터 연동 안내로 대신한다.
+ */
+export async function getSheetUrl(tab?: SheetTab): Promise<string | null> {
+  if (!sheetsConfigured()) return null;
+  try {
+    const meta = await sheetMeta();
+    // 구글 문서 주소만 링크로 쓴다(응답이 오염돼도 임의 주소·javascript: 로 보내지 않도록)
+    if (!meta || !/^https:\/\/docs\.google\.com\//.test(meta.url)) return null;
+    const base = meta.url.split("#")[0];
+    const gid = tab ? meta.gids[tab] : undefined;
+    return Number.isInteger(gid) ? `${base}#gid=${gid}` : base;
+  } catch (e) {
+    console.warn("[data] getSheetUrl 실패:", e);
+    return null;
+  }
+}
 
 export async function getAssets(): Promise<AssetRow[]> {
   if (!sheetsConfigured()) return ASSETS;

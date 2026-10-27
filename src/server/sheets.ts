@@ -12,6 +12,23 @@ export function sheetsConfigured(): boolean {
 
 export type SheetTab = "assets" | "loans" | "consumables" | "promo";
 
+export interface SheetMeta {
+  url: string;
+  gids: Partial<Record<SheetTab, number>>;
+}
+
+/** 연결된 스프레드시트 주소·탭 gid(Apps Script `meta`). 구버전 Code.gs 라 응답에 없으면 null. */
+export async function sheetMeta(): Promise<SheetMeta | null> {
+  if (!BASE) throw new Error("SHEETS_API_URL 미설정");
+  const url = `${BASE}?token=${encodeURIComponent(TOKEN)}&meta=1`;
+  // 시트 주소는 거의 바뀌지 않으므로 10분 캐시. Code.gs 재배포 후 최대 10분 안에 반영된다.
+  const res = await fetch(url, { next: { revalidate: 600, tags: ["sheets"] } });
+  if (!res.ok) throw new Error(`시트 정보 읽기 실패: HTTP ${res.status}`);
+  const data = await res.json();
+  if (!data || typeof data.url !== "string") return null;
+  return { url: data.url, gids: data.gids && typeof data.gids === "object" ? data.gids : {} };
+}
+
 /** 탭 전체 행을 객체 배열로 읽는다. */
 export async function sheetGet(tab: SheetTab): Promise<Record<string, unknown>[]> {
   if (!BASE) throw new Error("SHEETS_API_URL 미설정");

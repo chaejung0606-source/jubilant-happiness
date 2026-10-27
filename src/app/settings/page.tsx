@@ -1,11 +1,13 @@
-import { Settings, Database, ShieldCheck } from "lucide-react";
+import { Settings, Database, ShieldCheck, Sheet, ExternalLink } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { SoftCard, SoftCardHeader } from "@/components/cards/soft-card";
 import { StatusBadge } from "@/components/badges/status-badge";
-import { sheetsConfigured } from "@/data";
+import { Button } from "@/components/ui/button";
+import { getSheetUrl, sheetsConfigured } from "@/data";
 
-export default function SettingsPage() {
+export default async function SettingsPage() {
   const connected = sheetsConfigured();
+  const sheetUrl = await getSheetUrl();
   return (
     <>
       <PageHeader title="설정" description="계정·권한·데이터 연동" icon={<Settings className="h-6 w-6" />} />
@@ -21,12 +23,26 @@ export default function SettingsPage() {
             <b className="text-foreground">Google Sheets</b> 를 백엔드로 사용합니다. 시트를 연결하면
             데스크톱·갤럭시 태블릿 등 모든 기기에서 같은 데이터를 보고 동기화됩니다.
             설정 방법은 저장소의 <span className="font-mono text-xs">SHEETS-SETUP.md</span> 를 참고하세요.
+            연결 정보(웹앱 URL·토큰)는 보안상 이 화면이 아니라 Vercel 환경변수로 등록합니다.
           </p>
-          <div className="mt-4">
+          <div className="mt-4 flex flex-wrap items-center gap-2">
             {connected
               ? <StatusBadge label="연동됨 (Google Sheets)" tone="mint" />
               : <StatusBadge label="연동 대기 (더미)" tone="apricot" />}
+            {sheetUrl && (
+              <Button asChild variant="outline" size="sm">
+                <a href={sheetUrl} target="_blank" rel="noopener noreferrer" title="연결된 구글시트 열기 (새 탭)">
+                  <Sheet className="h-4 w-4" /> 구글시트 열기 <ExternalLink className="opacity-60" />
+                </a>
+              </Button>
+            )}
           </div>
+          {connected && !sheetUrl && (
+            <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+              시트 바로가기를 쓰려면 Apps Script 에 최신 <span className="font-mono">apps-script/Code.gs</span> 를 붙여넣고
+              <b className="text-foreground"> 배포 → 배포 관리 → 수정 → 새 버전</b>으로 다시 배포하세요(웹앱 URL 은 그대로).
+            </p>
+          )}
         </SoftCard>
 
         <SoftCard>

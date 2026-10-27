@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { SoftCard } from "@/components/cards/soft-card";
 import { StatusBadge } from "@/components/badges/status-badge";
 import { Button } from "@/components/ui/button";
+import { AssetSheetLink } from "@/components/assets/asset-sheet-link";
 import { Input } from "@/components/ui/input";
 import { Field, NativeSelect } from "@/components/ui/form-controls";
 import { ASSET_STATUS_OPTIONS } from "@/data/map";
@@ -39,7 +40,7 @@ function formToInput(f: Form) {
   };
 }
 
-export function AssetsClient({ initial, configured }: { initial: AssetRow[]; configured: boolean }) {
+export function AssetsClient({ initial, configured, sheetUrl }: { initial: AssetRow[]; configured: boolean; sheetUrl: string | null }) {
   const router = useRouter();
   const [q, setQ] = React.useState("");
   const [statusF, setStatusF] = React.useState("전체");
@@ -120,6 +121,7 @@ export function AssetsClient({ initial, configured }: { initial: AssetRow[]; con
             <Button variant="outline" size="sm" onClick={exportCsv} disabled={rows.length === 0}>
               <Download className="h-4 w-4" /> 내보내기
             </Button>
+            <AssetSheetLink url={sheetUrl} />
             <Button size="sm" onClick={openCreate}><Plus className="h-4 w-4" /> 자산 등록</Button>
           </>
         }

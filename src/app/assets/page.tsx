@@ -1,7 +1,7 @@
-import { getAssets, sheetsConfigured } from "@/data";
+import { getAssets, getSheetUrl, sheetsConfigured } from "@/data";
 import { AssetsClient } from "@/components/assets/assets-client";
 
 export default async function AssetsPage() {
-  const assets = await getAssets();
-  return <AssetsClient initial={assets} configured={sheetsConfigured()} />;
+  const [assets, sheetUrl] = await Promise.all([getAssets(), getSheetUrl("assets")]);
+  return <AssetsClient initial={assets} configured={sheetsConfigured()} sheetUrl={sheetUrl} />;
 }

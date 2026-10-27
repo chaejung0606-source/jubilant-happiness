@@ -20,6 +20,8 @@
 - 쓰기: 서버 액션(`src/app/assets/actions.ts`)의 `createAsset` / `applyLedgerAction` → `revalidateTag("sheets")`.
 - 백엔드: `apps-script/Code.gs` (Apps Script 웹앱). 설정 가이드 `SHEETS-SETUP.md`.
 - **시트 스키마(열) 변경 시 `apps-script/Code.gs`의 SCHEMA도 함께 고치고 재배포**해야 한다.
+- 시트 바로가기: `getSheetUrl(tab?)` 가 웹앱 `?meta=1`(시트 주소·탭 gid)을 읽는다. 주소를 하드코딩하거나
+  화면에서 입력받지 말 것(로그인이 없어 누구나 바꿀 수 있게 된다). 구버전 Code.gs 면 null → 설정 안내로 폴백.
 
 ## 환경변수
 - `SHEETS_API_URL`(웹앱 URL) · `SHEETS_API_TOKEN`(토큰). Vercel 환경변수 + 로컬 `.env.local`.

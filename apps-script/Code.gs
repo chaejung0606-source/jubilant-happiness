@@ -70,11 +70,23 @@ function doGet(e) {
   try {
     var p = (e && e.parameter) || {};
     if (!tokenOk_(p.token)) return json_({ error: "unauthorized" });
+    if (p.meta) return json_(meta_());
     if (!SCHEMA[p.tab]) return json_({ error: "unknown tab" });
     return json_(readAll_(p.tab));
   } catch (err) {
     return json_({ error: String(err) });
   }
+}
+
+/** 앱의 '구글시트' 바로가기용: 이 스크립트가 붙은 시트 주소 + 탭별 gid. 읽기 전용(탭을 만들지 않는다). */
+function meta_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var gids = {};
+  Object.keys(SCHEMA).forEach(function (tab) {
+    var sh = ss.getSheetByName(tab);
+    if (sh) gids[tab] = sh.getSheetId();
+  });
+  return { url: ss.getUrl(), gids: gids };
 }
 
 function doPost(e) {
