@@ -1,6 +1,6 @@
 "use server";
 
-import { createLoan, returnLoan, updateLoan, deleteLoan, type LoanInput } from "@/data";
+import { createLoan, createLoansMany, returnLoan, returnLoansMany, updateLoan, deleteLoan, type LoanInput } from "@/data";
 import { revalidatePath, revalidateTag } from "next/cache";
 
 function revalidateLoans() {
@@ -16,6 +16,28 @@ export async function createLoanAction(input: LoanInput): Promise<{ ok: boolean;
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "대여 처리에 실패했습니다." };
+  }
+}
+
+export async function createLoansAction(inputs: LoanInput[]): Promise<{ ok: number; fail: number; error?: string }> {
+  try {
+    if (!inputs.length) throw new Error("대여할 물품이 없습니다.");
+    const r = await createLoansMany(inputs);
+    revalidateLoans();
+    return { ok: r.ok, fail: r.fail, error: r.errors[0] };
+  } catch (e) {
+    return { ok: 0, fail: inputs.length, error: e instanceof Error ? e.message : "대여 처리에 실패했습니다." };
+  }
+}
+
+export async function returnLoansAction(ids: string[], returnedAt: string, returnBy?: string): Promise<{ ok: number; fail: number; error?: string }> {
+  try {
+    if (!ids.length) throw new Error("반납할 건이 없습니다.");
+    const r = await returnLoansMany(ids, returnedAt, returnBy);
+    revalidateLoans();
+    return { ok: r.ok, fail: r.fail, error: r.errors[0] };
+  } catch (e) {
+    return { ok: 0, fail: ids.length, error: e instanceof Error ? e.message : "반납 처리에 실패했습니다." };
   }
 }
 

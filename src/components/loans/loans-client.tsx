@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeftRight, Search, Plus, X, Check, Loader2, Undo2, Trash2 } from "lucide-react";
+import { ArrowLeftRight, Search, Plus, X, Check, Loader2, Undo2, Trash2, PackagePlus } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { SoftCard } from "@/components/cards/soft-card";
 import { StatusBadge } from "@/components/badges/status-badge";
@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/form-controls";
 import { SignaturePad } from "@/components/ui/signature-pad";
-import { createLoanAction, returnLoanAction, deleteLoanAction } from "@/app/loans/actions";
+import { createLoansAction, returnLoanAction, returnLoansAction, deleteLoanAction } from "@/app/loans/actions";
 import { todayKst } from "@/lib/diff";
 import type { LoanRow } from "@/lib/dummy";
 import type { Tone } from "@/lib/status";
@@ -18,8 +18,9 @@ import type { Tone } from "@/lib/status";
 type AssetLite = { mgmtNo: string; itemName: string };
 type Tab = "active" | "returned" | "all";
 
+// 공통 대여자 정보(물품은 selectedAssets 로 별도 다중 관리)
 const EMPTY = {
-  mgmtNo: "", itemName: "", borrower: "", idNo: "", affiliation: "", phone: "",
+  borrower: "", idNo: "", affiliation: "", phone: "",
   reason: "", signature: "", loanedAt: "", lendBy: "", dueAt: "",
 };
 type Form = typeof EMPTY;
@@ -45,25 +46,31 @@ export function LoansClient({ loans, assets }: { loans: LoanRow[]; assets: Asset
   const [query, setQuery] = React.useState("");
   const [open, setOpen] = React.useState(false);
   const [form, setForm] = React.useState<Form>({ ...EMPTY, loanedAt: todayKst() });
-  const [busy, setBusy] = React.useState<string>(""); // id 또는 "new"
+  const [busy, setBusy] = React.useState<string>(""); // id 또는 "new" / "bulk"
   const [error, setError] = React.useState("");
   const [confirmId, setConfirmId] = React.useState("");
 
-  // 자산 검색 콤보박스
+  // 대여 물품 다중 선택
+  const [selected, setSelected] = React.useState<AssetLite[]>([]);
   const [pickOpen, setPickOpen] = React.useState(false);
   const [pickQuery, setPickQuery] = React.useState("");
+  const [manualName, setManualName] = React.useState("");
+  const [manualMgmt, setManualMgmt] = React.useState("");
 
-  // 반납 확인자 입력(행별)
+  // 반납: 단건 인라인 + 다건 체크
   const [returnId, setReturnId] = React.useState("");
   const [returnBy, setReturnBy] = React.useState("");
+  const [checked, setChecked] = React.useState<Set<string>>(new Set());
+  const [bulkBy, setBulkBy] = React.useState("");
 
+  const selectedKeys = React.useMemo(() => new Set(selected.map((a) => a.mgmtNo + "|" + a.itemName)), [selected]);
   const pickResults = React.useMemo(() => {
     const q = pickQuery.trim().toLowerCase();
     const base = q
       ? assets.filter((a) => a.mgmtNo.toLowerCase().includes(q) || a.itemName.toLowerCase().includes(q))
       : assets;
-    return base.slice(0, 40);
-  }, [assets, pickQuery]);
+    return base.filter((a) => !selectedKeys.has(a.mgmtNo + "|" + a.itemName)).slice(0, 40);
+  }, [assets, pickQuery, selectedKeys]);
 
   const counts = React.useMemo(() => {
     let active = 0, returned = 0;
@@ -84,42 +91,45 @@ export function LoansClient({ loans, assets }: { loans: LoanRow[]; assets: Asset
       );
   }, [loans, tab, query]);
 
+  const checkableIds = React.useMemo(() => rows.filter((l) => l.status !== "반납완료" && l.id).map((l) => l.id as string), [rows]);
+
   function set<K extends keyof Form>(k: K, v: string) {
     setForm((f) => ({ ...f, [k]: v }));
   }
-  function selectAsset(a: AssetLite) {
-    setForm((f) => ({ ...f, mgmtNo: a.mgmtNo, itemName: a.itemName }));
-    setPickQuery(`${a.itemName} · ${a.mgmtNo}`);
-    setPickOpen(false);
+  function addAsset(a: AssetLite) {
+    setSelected((s) => (selectedKeys.has(a.mgmtNo + "|" + a.itemName) ? s : [...s, a]));
+    setPickQuery("");
+  }
+  function addManual() {
+    const name = manualName.trim();
+    if (!name) return;
+    setSelected((s) => [...s, { mgmtNo: manualMgmt.trim(), itemName: name }]);
+    setManualName(""); setManualMgmt("");
+  }
+  function removeAsset(i: number) {
+    setSelected((s) => s.filter((_, idx) => idx !== i));
   }
   function resetForm() {
     setForm({ ...EMPTY, loanedAt: todayKst() });
-    setPickQuery("");
+    setSelected([]); setPickQuery(""); setManualName(""); setManualMgmt("");
   }
 
   async function submitLoan(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    if (!form.mgmtNo.trim() || !form.itemName.trim() || !form.borrower.trim() || !form.dueAt) {
-      setError("자산(관리번호)·대여자·반납예정일은 필수입니다.");
-      return;
-    }
+    if (selected.length === 0) { setError("대여 물품을 1개 이상 선택하세요."); return; }
+    if (!form.borrower.trim() || !form.dueAt) { setError("대여자·반납예정일은 필수입니다."); return; }
     setBusy("new");
-    const r = await createLoanAction({
-      mgmtNo: form.mgmtNo.trim(),
-      itemName: form.itemName.trim(),
-      borrower: form.borrower.trim(),
-      idNo: form.idNo.trim(),
-      affiliation: form.affiliation.trim(),
-      phone: form.phone.trim(),
-      reason: form.reason.trim(),
-      signature: form.signature,
-      loanedAt: form.loanedAt || todayKst(),
-      lendBy: form.lendBy.trim(),
-      dueAt: form.dueAt,
-    });
+    const shared = {
+      borrower: form.borrower.trim(), idNo: form.idNo.trim(), affiliation: form.affiliation.trim(),
+      phone: form.phone.trim(), reason: form.reason.trim(), signature: form.signature,
+      loanedAt: form.loanedAt || todayKst(), lendBy: form.lendBy.trim(), dueAt: form.dueAt,
+    };
+    const inputs = selected.map((a) => ({ mgmtNo: a.mgmtNo, itemName: a.itemName, ...shared }));
+    const r = await createLoansAction(inputs);
     setBusy("");
-    if (!r.ok) { setError(r.error || "대여 처리에 실패했습니다."); return; }
+    if (r.ok === 0) { setError(r.error || "대여 처리에 실패했습니다."); return; }
+    if (r.fail > 0) setError(`${r.ok}건 등록, ${r.fail}건 실패: ${r.error ?? ""}`);
     resetForm();
     setOpen(false);
     router.refresh();
@@ -136,6 +146,18 @@ export function LoansClient({ loans, assets }: { loans: LoanRow[]; assets: Asset
     router.refresh();
   }
 
+  async function doBulkReturn() {
+    const ids = [...checked];
+    if (!ids.length) return;
+    setError("");
+    setBusy("bulk");
+    const r = await returnLoansAction(ids, todayKst(), bulkBy.trim());
+    setBusy("");
+    if (r.ok === 0) { setError(r.error || "반납 처리에 실패했습니다."); return; }
+    setChecked(new Set()); setBulkBy("");
+    router.refresh();
+  }
+
   async function doDelete(l: LoanRow) {
     if (!l.id) return;
     setError("");
@@ -147,9 +169,16 @@ export function LoansClient({ loans, assets }: { loans: LoanRow[]; assets: Asset
     router.refresh();
   }
 
+  function toggleCheck(id: string) {
+    setChecked((c) => { const n = new Set(c); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  }
+  function toggleAll() {
+    setChecked((c) => (c.size === checkableIds.length && checkableIds.length > 0 ? new Set() : new Set(checkableIds)));
+  }
+
   const TabBtn = ({ k, label, n }: { k: Tab; label: string; n: number }) => (
     <button
-      onClick={() => setTab(k)}
+      onClick={() => { setTab(k); setChecked(new Set()); }}
       className={
         "rounded-full px-4 py-1.5 text-sm font-medium transition-colors " +
         (tab === k ? "bg-primary text-primary-foreground shadow-pill" : "text-muted-foreground hover:bg-accent")
@@ -183,46 +212,74 @@ export function LoansClient({ loans, assets }: { loans: LoanRow[]; assets: Asset
       {open && (
         <SoftCard className="mb-5">
           <form onSubmit={submitLoan} className="space-y-6">
-            {/* ① 대여물품 */}
+            {/* ① 대여 물품 (다중) */}
             <section>
-              <SectionTitle n={1}>대여 물품</SectionTitle>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                <Field label="자산 검색·선택" required hint="품명 또는 관리번호" className="lg:col-span-2">
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      className="pl-9"
-                      value={pickQuery}
-                      onChange={(e) => { setPickQuery(e.target.value); setPickOpen(true); setForm((f) => ({ ...f, mgmtNo: "" })); }}
-                      onFocus={() => setPickOpen(true)}
-                      onBlur={() => setTimeout(() => setPickOpen(false), 150)}
-                      placeholder="예: 노트북  또는  [1]202407315011B0000142"
-                    />
-                    {pickOpen && pickResults.length > 0 && (
-                      <ul className="absolute z-30 mt-1 max-h-64 w-full overflow-auto rounded-2xl bg-card p-1 shadow-soft-lg ring-1 ring-black/[0.08]">
-                        {pickResults.map((a) => (
-                          <li key={a.mgmtNo}>
-                            <button
-                              type="button"
-                              onMouseDown={(e) => e.preventDefault()}
-                              onClick={() => selectAsset(a)}
-                              className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm hover:bg-accent"
-                            >
-                              <span className="truncate font-medium text-foreground">{a.itemName || "(품명 없음)"}</span>
-                              <span className="shrink-0 font-mono text-[12px] text-muted-foreground">{a.mgmtNo}</span>
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
+              <SectionTitle n={1}>대여 물품 <span className="ml-1 text-xs font-normal text-muted-foreground">여러 개 선택 가능</span></SectionTitle>
+              <div className="grid gap-4 lg:grid-cols-2">
+                <div>
+                  <Field label="자산 검색" hint="클릭하면 아래 목록에 담깁니다">
+                    <div className="relative">
+                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        className="pl-9"
+                        value={pickQuery}
+                        onChange={(e) => { setPickQuery(e.target.value); setPickOpen(true); }}
+                        onFocus={() => setPickOpen(true)}
+                        onBlur={() => setTimeout(() => setPickOpen(false), 150)}
+                        placeholder="예: 노트북  또는  [1]202407315011B0000142"
+                      />
+                      {pickOpen && pickResults.length > 0 && (
+                        <ul className="absolute z-30 mt-1 max-h-64 w-full overflow-auto rounded-2xl bg-card p-1 shadow-soft-lg ring-1 ring-black/[0.08]">
+                          {pickResults.map((a) => (
+                            <li key={a.mgmtNo + a.itemName}>
+                              <button
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => addAsset(a)}
+                                className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm hover:bg-accent"
+                              >
+                                <span className="truncate font-medium text-foreground">{a.itemName || "(품명 없음)"}</span>
+                                <span className="shrink-0 font-mono text-[12px] text-muted-foreground">{a.mgmtNo}</span>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  </Field>
+                  <div className="mt-3 flex items-end gap-2">
+                    <Field label="직접 추가" hint="목록에 없을 때" className="flex-1">
+                      <Input value={manualName} onChange={(e) => setManualName(e.target.value)} placeholder="품명" />
+                    </Field>
+                    <Input value={manualMgmt} onChange={(e) => setManualMgmt(e.target.value)} placeholder="관리번호(선택)" className="w-40" />
+                    <Button type="button" variant="outline" onClick={addManual}><PackagePlus className="h-4 w-4" />추가</Button>
                   </div>
-                </Field>
-                <Field label="관리번호" hint="선택 시 자동">
-                  <Input value={form.mgmtNo} readOnly placeholder="자산 선택 시 채워짐" className="bg-muted/40" />
-                </Field>
-                <Field label="품명" required>
-                  <Input value={form.itemName} onChange={(e) => set("itemName", e.target.value)} placeholder="자산 선택 시 자동(수정 가능)" />
-                </Field>
+                </div>
+
+                {/* 선택된 물품 목록 */}
+                <div className="rounded-2xl bg-muted/30 p-3 ring-1 ring-black/[0.04]">
+                  <div className="mb-2 flex items-center justify-between px-1">
+                    <span className="text-[13px] font-semibold text-foreground">선택된 물품 <span className="text-primary">{selected.length}</span>건</span>
+                    {selected.length > 0 && <button type="button" onClick={() => setSelected([])} className="text-[12px] text-muted-foreground hover:text-foreground">모두 비우기</button>}
+                  </div>
+                  {selected.length === 0 ? (
+                    <p className="px-1 py-6 text-center text-[13px] text-muted-foreground">검색해서 물품을 담아주세요.</p>
+                  ) : (
+                    <ul className="max-h-56 space-y-1.5 overflow-auto">
+                      {selected.map((a, i) => (
+                        <li key={a.mgmtNo + a.itemName + i} className="flex items-center justify-between gap-2 rounded-xl bg-card px-3 py-2 shadow-soft">
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-medium text-foreground">{a.itemName || "(품명 없음)"}</div>
+                            <div className="truncate font-mono text-[11px] text-muted-foreground">{a.mgmtNo || "관리번호 없음"}</div>
+                          </div>
+                          <button type="button" onClick={() => removeAsset(i)} className="shrink-0 rounded-lg p-1 text-muted-foreground hover:bg-accent hover:text-foreground" title="제거">
+                            <X className="h-4 w-4" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </div>
             </section>
 
@@ -244,7 +301,7 @@ export function LoansClient({ loans, assets }: { loans: LoanRow[]; assets: Asset
 
             {/* ③ 대여자 정보 */}
             <section>
-              <SectionTitle n={3}>대여자 정보</SectionTitle>
+              <SectionTitle n={3}>대여자 정보 <span className="ml-1 text-xs font-normal text-muted-foreground">선택한 물품 전체에 공통 적용</span></SectionTitle>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <Field label="대여자" required>
                   <Input value={form.borrower} onChange={(e) => set("borrower", e.target.value)} placeholder="홍길동" />
@@ -272,7 +329,7 @@ export function LoansClient({ loans, assets }: { loans: LoanRow[]; assets: Asset
               <Button type="button" variant="outline" onClick={() => { setOpen(false); setError(""); }}>취소</Button>
               <Button type="submit" disabled={busy === "new"}>
                 {busy === "new" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                대여 등록
+                {selected.length > 1 ? `${selected.length}건 대여 등록` : "대여 등록"}
               </Button>
             </div>
           </form>
@@ -291,13 +348,30 @@ export function LoansClient({ loans, assets }: { loans: LoanRow[]; assets: Asset
         </div>
       </div>
 
+      {/* 다건 반납 바 */}
+      {checked.size > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-2xl bg-pastel-mint/40 px-4 py-3 ring-1 ring-black/[0.04]">
+          <span className="text-sm font-semibold text-foreground">선택 {checked.size}건 반납</span>
+          <Input value={bulkBy} onChange={(e) => setBulkBy(e.target.value)} placeholder="반납 확인자" className="h-9 w-40" />
+          <Button size="sm" disabled={busy === "bulk"} onClick={doBulkReturn}>
+            {busy === "bulk" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Undo2 className="h-4 w-4" />}선택 반납
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setChecked(new Set())}>선택 해제</Button>
+        </div>
+      )}
+
       {error && !open && <p className="mb-3 text-sm text-pastel-coralInk">{error}</p>}
 
       <SoftCard padded={false}>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[920px] text-sm">
+          <table className="w-full min-w-[960px] text-sm">
             <thead>
               <tr className="border-b border-black/[0.06] text-left text-xs text-muted-foreground">
+                <th className="w-10 px-4 py-3">
+                  {checkableIds.length > 0 && (
+                    <input type="checkbox" checked={checked.size === checkableIds.length} onChange={toggleAll} className="h-4 w-4 cursor-pointer accent-primary" title="전체 선택" />
+                  )}
+                </th>
                 <th className="px-5 py-3 font-medium">관리번호</th>
                 <th className="px-5 py-3 font-medium">품명</th>
                 <th className="px-5 py-3 font-medium">대여자</th>
@@ -310,15 +384,21 @@ export function LoansClient({ loans, assets }: { loans: LoanRow[]; assets: Asset
             </thead>
             <tbody>
               {rows.length === 0 && (
-                <tr><td colSpan={8} className="px-5 py-10 text-center text-muted-foreground">해당하는 대여 내역이 없습니다.</td></tr>
+                <tr><td colSpan={9} className="px-5 py-10 text-center text-muted-foreground">해당하는 대여 내역이 없습니다.</td></tr>
               )}
               {rows.map((l) => {
                 const rowBusy = !!l.id && busy === l.id;
                 const returned = l.status === "반납완료";
                 const dd = returned ? null : dday(l.dueAt);
                 const rowTint = dd?.over ? "bg-pastel-coral/20" : dd?.near ? "bg-pastel-apricot/30" : "";
+                const isChecked = !!l.id && checked.has(l.id);
                 return (
                   <tr key={(l.id || l.mgmtNo) + l.borrower + l.loanedAt} className={"border-b border-black/[0.04] hover:bg-accent/60 " + rowTint}>
+                    <td className="px-4 py-3">
+                      {!returned && l.id && (
+                        <input type="checkbox" checked={isChecked} onChange={() => toggleCheck(l.id as string)} className="h-4 w-4 cursor-pointer accent-primary" />
+                      )}
+                    </td>
                     <td className="whitespace-nowrap px-5 py-3 font-mono text-[13px] text-foreground/80">{l.mgmtNo}</td>
                     <td className="px-5 py-3 font-medium text-foreground">{l.itemName}</td>
                     <td className="whitespace-nowrap px-5 py-3 text-foreground/80">{l.borrower}</td>
@@ -332,13 +412,7 @@ export function LoansClient({ loans, assets }: { loans: LoanRow[]; assets: Asset
                     <td className="px-5 py-3">
                       {returnId === l.id ? (
                         <div className="flex items-center justify-end gap-1.5">
-                          <Input
-                            autoFocus
-                            value={returnBy}
-                            onChange={(e) => setReturnBy(e.target.value)}
-                            placeholder="반납 확인자"
-                            className="h-9 w-32"
-                          />
+                          <Input autoFocus value={returnBy} onChange={(e) => setReturnBy(e.target.value)} placeholder="반납 확인자" className="h-9 w-32" />
                           <Button size="sm" disabled={rowBusy} onClick={() => doReturn(l)}>
                             {rowBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}확인
                           </Button>

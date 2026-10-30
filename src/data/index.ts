@@ -158,10 +158,48 @@ export async function createLoan(input: LoanInput): Promise<void> {
   await sheetWrite("loans", "append", { ...input, status: input.status || "대여중" });
 }
 
+/** 여러 자산을 한 번에 대여(공통 대여자 정보로 N건 생성). 실패는 집계만. */
+export async function createLoansMany(
+  inputs: LoanInput[]
+): Promise<{ ok: number; fail: number; errors: string[] }> {
+  if (!sheetsConfigured()) throw new Error(LOANS_NOT_READY);
+  let ok = 0, fail = 0;
+  const errors: string[] = [];
+  for (const inp of inputs) {
+    try {
+      await sheetWrite("loans", "append", { ...inp, status: inp.status || "대여중" });
+      ok++;
+    } catch (e) {
+      fail++;
+      if (errors.length < 5) errors.push(e instanceof Error ? e.message : String(e));
+    }
+  }
+  return { ok, fail, errors };
+}
+
 /** 반납 처리(반납일·반납 확인자 기록 + 상태 반납완료). */
 export async function returnLoan(id: string, returnedAt: string, returnBy?: string): Promise<void> {
   if (!sheetsConfigured()) throw new Error(LOANS_NOT_READY);
   await sheetWrite("loans", "update", { id, returnedAt, returnBy: returnBy || "", status: "반납완료" });
+}
+
+/** 여러 건 일괄 반납. */
+export async function returnLoansMany(
+  ids: string[], returnedAt: string, returnBy?: string
+): Promise<{ ok: number; fail: number; errors: string[] }> {
+  if (!sheetsConfigured()) throw new Error(LOANS_NOT_READY);
+  let ok = 0, fail = 0;
+  const errors: string[] = [];
+  for (const id of ids) {
+    try {
+      await sheetWrite("loans", "update", { id, returnedAt, returnBy: returnBy || "", status: "반납완료" });
+      ok++;
+    } catch (e) {
+      fail++;
+      if (errors.length < 5) errors.push(e instanceof Error ? e.message : String(e));
+    }
+  }
+  return { ok, fail, errors };
 }
 
 /** 대여 1건 수정(id 기준). */
