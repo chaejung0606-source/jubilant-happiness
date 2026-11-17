@@ -41,8 +41,18 @@ function sheetFor_(tab) {
     sh.clear();
     sh.getRange(1, 1, 1, headers.length).setValues([headers]);
     sh.setFrozenRows(1);
+    // id 열(1열)을 '일반 텍스트(@)'로 고정 → appendRow 가 숫자처럼 보이는 id 를
+    // 숫자/지수(예: '0e12' → 0)로 바꾸지 않게 한다.
+    sh.getRange(1, 1, sh.getMaxRows(), 1).setNumberFormat("@");
   }
   return sh;
+}
+
+/** 숫자/지수로 해석되지 않는 8자 id 생성. */
+function genId_() {
+  var id = Utilities.getUuid().slice(0, 8);
+  if (/^[0-9]+$/.test(id) || /^[0-9]+e[0-9]+$/i.test(id)) id = "a" + id.slice(1);
+  return id;
 }
 
 function readAll_(tab) {
@@ -102,7 +112,7 @@ function doPost(e) {
     var sh = sheetFor_(body.tab);
 
     if (action === "append") {
-      row.id = row.id || Utilities.getUuid().slice(0, 8);
+      row.id = row.id || genId_();
       row.updatedAt = new Date().toISOString();
       sh.appendRow(headers.map(function (h) { return row[h] != null ? row[h] : ""; }));
       return json_({ ok: true, id: row.id });
@@ -138,4 +148,44 @@ function doPost(e) {
 /** 최초 1회 실행: 탭/헤더 생성. */
 function setup() {
   Object.keys(SCHEMA).forEach(function (tab) { sheetFor_(tab); });
+}
+
+/**
+ * 1회 실행용 정리: 숫자로 저장된 id 를 텍스트로 바꾸고 id 열 서식을 '@'로 고정.
+ *  - 값이 비었거나 '0'(지수 오해석 손상분)이거나 중복이면 새 id 를 부여.
+ *  - 그 외 숫자형 id 는 값 그대로 '텍스트'로 보존(앱은 String 비교라 참조 안 깨짐).
+ *  반환: 탭별 { 새로부여, 텍스트전환 } 집계.
+ */
+function fixIds() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var report = {};
+  Object.keys(SCHEMA).forEach(function (tab) {
+    var headers = SCHEMA[tab];
+    var sh = ss.getSheetByName(tab);
+    if (!sh) return;
+    var idCol = headers.indexOf("id") + 1;
+    sh.getRange(1, idCol, sh.getMaxRows(), 1).setNumberFormat("@"); // 앞으로의 쓰기도 텍스트 고정
+    var last = sh.getLastRow();
+    if (last < 2) { report[tab] = { reassigned: 0, toText: 0 }; return; }
+    var rng = sh.getRange(2, idCol, last - 1, 1);
+    var vals = rng.getValues();
+    var seen = {}, reassigned = 0, toText = 0;
+    for (var i = 0; i < vals.length; i++) {
+      var raw = vals[i][0];
+      var wasNumber = (typeof raw === "number");
+      var s = (raw === null || raw === "") ? "" : String(raw);
+      if (s === "" || s === "0" || seen[s]) {
+        s = genId_();
+        while (seen[s]) s = genId_();
+        reassigned++;
+      } else if (wasNumber) {
+        toText++; // 값은 유지, 저장 타입만 텍스트로
+      }
+      seen[s] = true;
+      vals[i][0] = s;
+    }
+    rng.setValues(vals);
+    report[tab] = { reassigned: reassigned, toText: toText };
+  });
+  return report;
 }
