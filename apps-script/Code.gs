@@ -119,6 +119,20 @@ function doPost(e) {
       return json_({ ok: true, id: row.id });
     }
 
+    if (action === "appendMany") {
+      var rows = body.rows || [];
+      if (!rows.length) return json_({ ok: true, count: 0 });
+      var start = sh.getLastRow() + 1;
+      var now = new Date().toISOString();
+      var matrix = rows.map(function (r) {
+        r.id = r.id || genId_();
+        r.updatedAt = r.updatedAt || now;
+        return headers.map(function (h) { return r[h] != null ? r[h] : ""; });
+      });
+      sh.getRange(start, 1, matrix.length, headers.length).setValues(matrix);
+      return json_({ ok: true, count: matrix.length });
+    }
+
     if (action === "update" || action === "delete") {
       if (!row.id) return json_({ ok: false, error: "id 필요" });
       var last = sh.getLastRow();

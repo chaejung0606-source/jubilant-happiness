@@ -153,10 +153,11 @@ async function main() {
   const all = args.includes("--all");
   const actionable = args.includes("--actionable");
   const update = args.includes("--update");
+  const bulk = args.includes("--bulk");
   const ri = args.indexOf("--reason");
   const reason = ri >= 0 ? args[ri + 1] : "";
 
-  if (!file) { console.error("사용: npm run apply:daesa -- <CSV> [--commit --all --update --reason \"사유\"]"); process.exit(1); }
+  if (!file) { console.error("사용: npm run apply:daesa -- <CSV> [--commit --bulk --all --update --reason \"사유\"]"); process.exit(1); }
 
   const { headers, rows } = parseTable(readCsv(file));
   const ledgerMode = headers.includes("관리번호");
@@ -196,6 +197,24 @@ async function main() {
       for (const a of items.slice(0, 5)) console.log(`  + ${a.mgmtNo}  ${a.itemName} · ${a.location} · ${a.unitPrice.toLocaleString()}원`);
       if (items.length > 5) console.log(`  … 외 ${items.length - 5}건`);
     }
+    return;
+  }
+
+  // 대량 반입(appendMany) — 비운 시트에 빠르게 넣을 때. 중복 검사는 하지 않는다.
+  if (bulk) {
+    const payloads = items.map((a) => { const { _detail, _group, _hasAssetNo, _schoolNo, ...p } = a; void _detail; void _group; void _hasAssetNo; void _schoolNo; return p; });
+    const CHUNK = 300;
+    let sent = 0, failed = 0;
+    for (let i = 0; i < payloads.length; i += CHUNK) {
+      const chunk = payloads.slice(i, i + CHUNK);
+      try {
+        if (commit) await sheetPost(base, token, { tab: "assets", action: "appendMany", rows: chunk });
+        sent += chunk.length;
+        console.log(`  ${sent}/${payloads.length}`);
+      } catch (e) { failed += chunk.length; console.error(`  청크 실패: ${(e as Error).message}`); }
+    }
+    console.log(`\n${commit ? "반영" : "예상"}(대량) — 추가 ${sent}${failed ? ` · 실패 ${failed}` : ""}`);
+    if (!commit) console.log("실제 반영하려면 --commit 을 붙이세요.");
     return;
   }
 
