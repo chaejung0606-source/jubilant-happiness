@@ -22,7 +22,8 @@ export default async function SettingsPage() {
           <p className="text-sm leading-relaxed text-muted-foreground">
             <b className="text-foreground">Google Sheets</b> 를 백엔드로 사용합니다. 시트를 연결하면
             데스크톱·갤럭시 태블릿 등 모든 기기에서 같은 데이터를 보고 동기화됩니다.
-            설정 방법은 저장소의 <span className="font-mono text-xs">SHEETS-SETUP.md</span> 를 참고하세요.
+            아래 <b className="text-foreground">구글시트 바로가기</b>로 원본 시트를 열어
+            <b className="text-foreground"> 로우데이터(실제 저장 형태·탭별 행)</b>가 어떻게 정리되는지 직접 확인할 수 있습니다.
             연결 정보(웹앱 URL·토큰)는 보안상 이 화면이 아니라 Vercel 환경변수로 등록합니다.
           </p>
           <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -31,8 +32,8 @@ export default async function SettingsPage() {
               : <StatusBadge label="연동 대기 (더미)" tone="apricot" />}
             {sheetUrl && (
               <Button asChild variant="outline" size="sm">
-                <a href={sheetUrl} target="_blank" rel="noopener noreferrer" title="연결된 구글시트 열기 (새 탭)">
-                  <Sheet className="h-4 w-4" /> 구글시트 열기 <ExternalLink className="opacity-60" />
+                <a href={sheetUrl} target="_blank" rel="noopener noreferrer" title="연결된 구글시트 원본 데이터 열기 (새 탭)">
+                  <Sheet className="h-4 w-4" /> 구글시트 바로가기 <ExternalLink className="opacity-60" />
                 </a>
               </Button>
             )}

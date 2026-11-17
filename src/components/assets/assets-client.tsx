@@ -198,7 +198,7 @@ export function AssetsClient({ initial, configured, sheetUrl }: { initial: Asset
 
       <SoftCard padded={false}>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1040px] text-sm">
+          <table className="w-full min-w-[1160px] text-sm">
             <thead>
               <tr className="border-b border-black/[0.06] text-left text-xs text-muted-foreground">
                 <th className="px-5 py-3 font-medium">관리번호</th>
@@ -218,11 +218,11 @@ export function AssetsClient({ initial, configured, sheetUrl }: { initial: Asset
                 <tr key={a.id ?? a.mgmtNo + i} className="border-b border-black/[0.04] transition-colors hover:bg-accent/60">
                   <td className="whitespace-nowrap px-5 py-3 font-mono text-[13px] text-foreground/80">{a.mgmtNo}</td>
                   <td className="whitespace-nowrap px-5 py-3 font-mono text-[12px] text-muted-foreground">{a.tagNo || "—"}</td>
-                  <td className="px-5 py-3 font-medium text-foreground">
+                  <td className="whitespace-nowrap px-5 py-3 font-medium text-foreground">
                     <button type="button" className="text-left hover:text-primary hover:underline" onClick={() => setDetail(a)}>{a.itemName}</button>
                     {a.editReason && <span title={a.editDetail || a.editReason} className="ml-1.5 whitespace-nowrap text-[11px] text-pastel-apricotInk">✎수정</span>}
                   </td>
-                  <td className="max-w-[200px] truncate px-5 py-3 text-muted-foreground" title={a.spec || ""}>{a.spec || "—"}</td>
+                  <td className="max-w-[260px] truncate px-5 py-3 text-muted-foreground" title={a.spec || ""}>{a.spec || "—"}</td>
                   <td className="px-5 py-3"><StatusBadge label={a.status} tone={a.statusTone} /></td>
                   <td className="whitespace-nowrap px-5 py-3 text-foreground/80">{a.user ?? "—"}</td>
                   <td className="whitespace-nowrap px-5 py-3 text-muted-foreground">{a.location}</td>

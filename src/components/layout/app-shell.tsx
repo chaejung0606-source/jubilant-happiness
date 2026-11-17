@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import { NAV_ITEMS, isActive } from "@/lib/nav";
+import { APP_VERSION, APP_BUILD } from "@/lib/version";
 import { cn } from "@/lib/utils";
 
 /** 사이드바 + 모바일 드로어를 갖춘 앱 셸. 데스크톱·태블릿 공용 반응형. */
@@ -127,8 +128,14 @@ function Nav({ pathname }: { pathname: string }) {
 
 function FooterNote({ connected }: { connected: boolean }) {
   return (
-    <div className="mt-4 rounded-2xl bg-pastel-mint/60 px-3 py-2.5 text-[11px] leading-relaxed text-pastel-mintInk">
-      {connected ? "Google Sheets 연동됨 · 실데이터" : "더미 데이터로 동작 중 · 연동 전 미리보기"}
+    <div className="mt-4 space-y-2">
+      <div className="rounded-2xl bg-pastel-mint/60 px-3 py-2.5 text-[11px] leading-relaxed text-pastel-mintInk">
+        {connected ? "Google Sheets 연동됨 · 실데이터" : "더미 데이터로 동작 중 · 연동 전 미리보기"}
+      </div>
+      <div className="flex items-center justify-between px-1 text-[11px] text-muted-foreground">
+        <span className="font-medium">COSS자산관리</span>
+        <span className="tabular-nums">v{APP_VERSION} · {APP_BUILD}</span>
+      </div>
     </div>
   );
 }
