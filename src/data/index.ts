@@ -1,11 +1,11 @@
 // 데이터 접근 계층. 시트가 설정돼 있으면 Google Sheets, 아니면 더미.
 // 읽기 실패 시에도 앱이 죽지 않도록 더미로 폴백한다.
 import {
-  ASSETS, LOANS, CONSUMABLES, PROMO,
-  type AssetRow, type LoanRow, type ConsumableRow, type PromoRow,
+  ASSETS, LOANS, CONSUMABLES, PROMO, ACCOUNTS,
+  type AssetRow, type LoanRow, type ConsumableRow, type PromoRow, type AccountRow, type Role,
 } from "@/lib/dummy";
 import { sheetsConfigured, sheetGet, sheetWrite, sheetMeta, type SheetTab } from "@/server/sheets";
-import { toAssetRow, toLoanRow, toConsumableRow, toPromoRow } from "./map";
+import { toAssetRow, toLoanRow, toConsumableRow, toPromoRow, toAccountRow } from "./map";
 
 export { sheetsConfigured };
 
@@ -212,4 +212,59 @@ export async function updateLoan(id: string, input: LoanInput): Promise<void> {
 export async function deleteLoan(id: string): Promise<void> {
   if (!sheetsConfigured()) throw new Error(LOANS_NOT_READY);
   await sheetWrite("loans", "delete", { id });
+}
+
+// ── 계정(accounts) ────────────────────────────────────────────
+export interface AccountInput {
+  username: string;
+  password?: string; // 해시(서버 액션에서 해시 후 전달)
+  role: Role;
+  name: string;
+}
+
+const ACCOUNTS_NOT_READY = "시트 연동이 아직 설정되지 않았습니다. 설정 > 데이터 연동을 참고하세요.";
+
+/** 계정 목록(비밀번호 제외). */
+export async function getAccounts(): Promise<AccountRow[]> {
+  if (!sheetsConfigured()) return ACCOUNTS;
+  try {
+    return (await sheetGet("accounts")).map(toAccountRow);
+  } catch (e) {
+    console.warn("[data] getAccounts 폴백(더미):", e);
+    return ACCOUNTS;
+  }
+}
+
+/** username 으로 계정 1건(비밀번호 해시 포함) 조회 — 로그인 검증용. */
+export async function getAccountByUsername(
+  username: string
+): Promise<{ id: string; username: string; password: string; role: Role; name: string } | null> {
+  if (!sheetsConfigured()) return null;
+  const u = username.trim().toLowerCase();
+  const rows = await sheetGet("accounts");
+  const r = rows.find((x) => String(x.username ?? "").trim().toLowerCase() === u);
+  if (!r) return null;
+  const role = String(r.role ?? "viewer");
+  return {
+    id: String(r.id ?? ""),
+    username: String(r.username ?? ""),
+    password: String(r.password ?? ""),
+    role: (role === "admin" || role === "manager" || role === "viewer" ? role : "viewer") as Role,
+    name: String(r.name ?? ""),
+  };
+}
+
+export async function createAccount(input: AccountInput): Promise<void> {
+  if (!sheetsConfigured()) throw new Error(ACCOUNTS_NOT_READY);
+  await sheetWrite("accounts", "append", { ...input });
+}
+
+export async function updateAccount(id: string, input: Partial<AccountInput>): Promise<void> {
+  if (!sheetsConfigured()) throw new Error(ACCOUNTS_NOT_READY);
+  await sheetWrite("accounts", "update", { id, ...input });
+}
+
+export async function deleteAccount(id: string): Promise<void> {
+  if (!sheetsConfigured()) throw new Error(ACCOUNTS_NOT_READY);
+  await sheetWrite("accounts", "delete", { id });
 }

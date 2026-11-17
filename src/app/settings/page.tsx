@@ -3,11 +3,13 @@ import { PageHeader } from "@/components/layout/page-header";
 import { SoftCard, SoftCardHeader } from "@/components/cards/soft-card";
 import { StatusBadge } from "@/components/badges/status-badge";
 import { Button } from "@/components/ui/button";
-import { getSheetUrl, sheetsConfigured } from "@/data";
+import { AccountsManager } from "@/components/settings/accounts-manager";
+import { getSheetUrl, sheetsConfigured, getAccounts } from "@/data";
 
 export default async function SettingsPage() {
   const connected = sheetsConfigured();
   const sheetUrl = await getSheetUrl();
+  const accounts = await getAccounts();
   return (
     <>
       <PageHeader title="설정" description="계정·권한·데이터 연동" icon={<Settings className="h-6 w-6" />} />
@@ -49,23 +51,10 @@ export default async function SettingsPage() {
         <SoftCard>
           <SoftCardHeader
             title="계정 · 권한"
-            description="메뉴별 접근 권한 관리"
+            description="아이디·비밀번호로 계정을 만들고 권한을 부여합니다"
             action={<ShieldCheck className="h-5 w-5 text-pastel-mintInk" />}
           />
-          <ul className="flex flex-col gap-2.5 text-sm">
-            <li className="flex items-center justify-between">
-              <span className="text-foreground">관리자</span>
-              <StatusBadge label="전체 메뉴" tone="mint" />
-            </li>
-            <li className="flex items-center justify-between">
-              <span className="text-foreground">자산담당자</span>
-              <StatusBadge label="설정 제외" tone="sky" />
-            </li>
-            <li className="flex items-center justify-between">
-              <span className="text-foreground">조회자</span>
-              <StatusBadge label="읽기 전용" tone="slate" />
-            </li>
-          </ul>
+          <AccountsManager accounts={accounts} connected={connected} />
         </SoftCard>
       </div>
     </>

@@ -10,7 +10,7 @@ export function sheetsConfigured(): boolean {
   return !!BASE;
 }
 
-export type SheetTab = "assets" | "loans" | "consumables" | "promo";
+export type SheetTab = "assets" | "loans" | "consumables" | "promo" | "accounts";
 
 export interface SheetMeta {
   url: string;

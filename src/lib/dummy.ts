@@ -113,3 +113,16 @@ export const MONTHLY: MonthlyPoint[] = [
 export function won(n: number): string {
   return "₩" + n.toLocaleString("ko-KR");
 }
+
+// 계정 · 권한
+export type Role = "admin" | "manager" | "viewer";
+export interface AccountRow {
+  id?: string;
+  username: string;
+  role: Role;
+  name: string;
+  updatedAt?: string;
+}
+export const ACCOUNTS: AccountRow[] = [
+  { id: "A1", username: "admin", role: "admin", name: "관리자", updatedAt: "" },
+];

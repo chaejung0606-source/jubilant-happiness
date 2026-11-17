@@ -17,6 +17,7 @@ const SCHEMA = {
   loans:       ["id","mgmtNo","itemName","borrower","idNo","affiliation","phone","reason","signature","loanedAt","lendBy","dueAt","returnedAt","returnBy","status","updatedAt"],
   consumables: ["id","itemName","spec","unit","qty","safetyQty","location","updatedAt"],
   promo:       ["id","code","name","unit","qty","safetyQty","note","updatedAt"],
+  accounts:    ["id","username","password","role","name","updatedAt"],
 };
 
 function tokenOk_(t) {

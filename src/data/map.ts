@@ -1,8 +1,20 @@
 // 시트 행(문자열 맵) → 앱 타입 매핑 + 상태 톤 계산.
-import type { AssetRow, LoanRow, ConsumableRow, PromoRow } from "@/lib/dummy";
+import type { AssetRow, LoanRow, ConsumableRow, PromoRow, AccountRow, Role } from "@/lib/dummy";
 import type { Tone } from "@/lib/status";
 
 type Raw = Record<string, unknown>;
+
+/** 계정 행 매핑 — 비밀번호(해시)는 목록에 내보내지 않는다. */
+export function toAccountRow(r: Raw): AccountRow {
+  const role = String(r.role ?? "viewer").trim();
+  return {
+    id: String(r.id ?? "").trim(),
+    username: String(r.username ?? "").trim(),
+    role: (role === "admin" || role === "manager" || role === "viewer" ? role : "viewer") as Role,
+    name: String(r.name ?? "").trim(),
+    updatedAt: String(r.updatedAt ?? "").trim(),
+  };
+}
 
 const s = (v: unknown) => String(v ?? "").trim();
 const num = (v: unknown) => {
